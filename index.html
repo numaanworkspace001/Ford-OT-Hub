@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ford OT | Unified Management Portal</title>
+    <style>
+        :root {
+            --ford-blue: #003478;
+            --ford-light: #0060b6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-800: #1e293b;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--slate-50); color: var(--slate-800); display: flex; height: 100vh; overflow: hidden; }
+
+        .sidebar { width: 260px; background: var(--ford-blue); color: white; display: flex; flex-direction: column; transition: 0.3s; z-index: 1000; }
+        .sidebar.closed { margin-left: -260px; }
+        .sidebar-header { padding: 24px; font-weight: 800; font-size: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .nav-item { padding: 16px 24px; cursor: pointer; display: flex; align-items: center; gap: 12px; font-weight: 600; transition: 0.2s; opacity: 0.7; }
+        .nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); opacity: 1; }
+
+        .main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+        .top-bar { padding: 16px 32px; background: white; border-bottom: 1px solid var(--slate-200); display: flex; align-items: center; gap: 20px; position: sticky; top: 0; z-index: 900; }
+        .content-area { padding: 32px; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+        .week-nav { display: flex; align-items: center; gap: 15px; background: white; padding: 10px 20px; border-radius: 12px; border: 1px solid var(--slate-200); margin-bottom: 24px; justify-content: center; flex-wrap: wrap; }
+        .week-label { font-weight: 800; color: var(--ford-blue); font-size: 14px; min-width: 250px; text-align: center; }
+        .week-selectors { display: flex; gap: 8px; align-items: center; border-left: 2px solid var(--slate-200); padding-left: 15px; }
+        .nav-select { padding: 5px; border-radius: 6px; border: 1px solid var(--slate-200); font-weight: 700; color: var(--ford-blue); outline: none; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 32px; }
+        .stat-card { background: white; padding: 18px; border-radius: 16px; border: 1px solid var(--slate-200); box-shadow: var(--shadow); }
+        .stat-label { font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-value { font-size: 20px; font-weight: 800; color: var(--ford-blue); margin-top: 4px; }
+
+        .dashboard-table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; border: 1px solid var(--slate-200); margin-bottom: 30px; }
+        .dashboard-table th { background: var(--slate-800); color: white; padding: 10px; text-align: left; font-size: 10px; }
+        .dashboard-table td { padding: 12px; border-bottom: 1px solid var(--slate-100); font-size: 13px; }
+        .row-ll6 { background: #f8fafc; font-weight: 700; cursor: pointer; }
+        .row-emp { display: none; background: white; }
+        .row-emp.visible { display: table-row; }
+        .day-cell { text-align: center; font-weight: 600; width: 50px; }
+        .day-cell.active { color: var(--ford-blue); background: #eff6ff; }
+
+        /* Tooltip Styles */
+        .tooltip { position: relative; display: inline-block; cursor: pointer; color: var(--ford-light); margin-left: 6px; font-style: italic; font-weight: bold; }
+        .tooltip-text { 
+            visibility: hidden; width: 220px; background-color: var(--slate-800); color: #fff; text-align: left; 
+            border-radius: 8px; padding: 10px; position: absolute; z-index: 1001; bottom: 125%; left: 50%; 
+            transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; font-size: 11px; line-height: 1.4; font-style: normal;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+        }
+        .tooltip-text b { color: var(--warning); text-transform: uppercase; font-size: 9px; }
+        .tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+
+        .panel { background: white; padding: 24px; border-radius: 16px; border: 1px solid var(--slate-200); margin-bottom: 24px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        label { display: block; font-size: 10px; font-weight: 800; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
+        select, input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--slate-200); background: var(--slate-50); font-family: inherit; outline: none; }
+
+        .days-input-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; background: var(--slate-100); padding: 12px; border-radius: 8px; margin-bottom: 20px; }
+        .day-input-box { text-align: center; }
+        .day-input-box span { font-size: 9px; font-weight: 800; display: block; margin-bottom: 4px; color: var(--ford-blue); }
+        .day-input-box input { text-align: center; font-weight: 800; }
+
+        .btn { padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: none; transition: 0.2s; }
+        .btn-primary { background: var(--ford-blue); color: white; }
+        .btn-ghost { background: var(--slate-100); border: 1px solid var(--slate-200); }
+        .btn-danger { background: #fee2e2; color: var(--danger); }
+        .btn-success { background: var(--success); color: white; }
+        
+        .hidden { display: none; }
+        .ll5-header { background: var(--ford-blue); color: white; padding: 10px 20px; border-radius: 8px 8px 0 0; font-weight: 800; font-size: 13px; }
+        .ll6-card { background: var(--slate-50); border: 1px solid var(--slate-200); padding: 15px; border-radius: 12px; margin-top: 10px; }
+        .emp-tag { background: white; border: 1px solid var(--slate-200); padding: 4px 10px; border-radius: 100px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; margin: 4px; cursor: pointer; }
+        .section-title { font-size: 14px; font-weight: 800; color: var(--ford-blue); margin: 30px 0 15px 0; text-transform: uppercase; border-left: 4px solid var(--ford-blue); padding-left: 12px; }
+        
+        .edit-btn { color: #94a3b8; cursor: pointer; font-size: 12px; margin-left: 8px; }
+        .edit-btn:hover { color: var(--ford-blue); }
+        .year-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--slate-100); }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">FORD OT HUB</div>
+        <div class="nav-item active" onclick="switchView('worksheet')">📝 Worksheet</div>
+        <div class="nav-item" onclick="switchView('settings')">⚙️ Settings</div>
+    </div>
+
+    <div class="main">
+        <div class="top-bar">
+            <div class="menu-btn" onclick="toggleSidebar()" style="cursor:pointer; font-size:20px">☰</div>
+            <h2 id="view-title">Worksheet</h2>
+        </div>
+
+        <div class="content-area">
+            <div id="view-worksheet" class="view-content">
+                <div class="week-nav">
+                    <button class="btn btn-ghost" onclick="changeWeek(-1)">◀ Prev Week</button>
+                    <div class="week-label" id="current-week-range">Loading...</div>
+                    <button class="btn btn-ghost" onclick="changeWeek(1)">Next Week ▶</button>
+                    <div class="week-selectors">
+                        <select id="jump-year" class="nav-select" onchange="jumpToWeek()"></select>
+                        <select id="jump-week" class="nav-select" onchange="jumpToWeek()"></select>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card"><span class="stat-label" id="label-annual-budget">Annual Budget</span><div id="stat-total-budget" class="stat-value">$0</div></div>
+                    <div class="stat-card"><span class="stat-label">Annual Remaining</span><div id="stat-annual-remain" class="stat-value">$0</div></div>
+                    <div class="stat-card"><span class="stat-label">Weekly Budget Target</span><div id="stat-weekly-budget" class="stat-value" style="color: var(--success)">$0</div></div>
+                    <div class="stat-card"><span class="stat-label">Target Weekly Hours</span><div id="stat-max-hours" class="stat-value" style="color: var(--warning)">0 hrs</div></div>
+                    <div class="stat-card"><span class="stat-label">Weekly Actual Spent</span><div id="stat-weekly-actual" class="stat-value">$0</div></div>
+                </div>
+
+                <div class="panel">
+                    <div class="form-grid">
+                        <div class="input-group"><label>LL5 Manager</label><select id="sel-ll5" onchange="updateLL6Dropdown()"></select></div>
+                        <div class="input-group"><label>Supervisor (LL6)</label><select id="sel-ll6" onchange="updateEmployeeDropdown()"></select></div>
+                        <div class="input-group"><label>Employee</label><select id="sel-emp"></select></div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="input-group"><label>Program</label><input type="text" id="in-prog" placeholder="e.g. Godzilla"></div>
+                        <div class="input-group"><label>Location</label><input type="text" id="in-loc" placeholder="e.g. WP Plant"></div>
+                        <div class="input-group"><label>Reason</label><input type="text" id="in-reason" placeholder="e.g. Critical Work"></div>
+                    </div>
+                    <div class="days-input-grid" id="days-entry"></div>
+                    <button class="btn btn-primary" style="width:100%" onclick="addEntry()">Add Entry to Hub</button>
+                </div>
+
+                <div class="section-title">Weekly OT Heatmap Summary</div>
+                <div id="worksheet-summary"></div>
+            </div>
+
+            <div id="view-settings" class="view-content hidden">
+                <div class="panel">
+                    <h3>Multi-Year Financial Budgets</h3>
+                    <div class="form-grid" style="margin-top:15px; align-items: end;">
+                        <div class="input-group"><label>Add Year</label><input type="number" id="set-new-year" value="2026"></div>
+                        <div class="input-group"><label>Annual Budget ($)</label><input type="number" id="set-new-budget" value="1000000"></div>
+                        <button class="btn btn-primary" onclick="addYearBudget()">Add/Update Year</button>
+                    </div>
+                    <div id="year-list" style="margin-top: 20px;"></div>
+                    <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--slate-200);">
+                    <div class="form-grid">
+                        <div class="input-group"><label>Flat Hourly Rate ($)</label><input type="number" id="set-rate" onchange="save()"></div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <h3>Hierarchy Management</h3>
+                    <div id="settings-hierarchy"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let state = {
+            budgetsByYear: { "2025": 1000000, "2026": 1000000 },
+            rate: 50,
+            viewOffset: 0,
+            ll5s: [
+                { name: "Damian Off", ll6s: [
+                    { name: "Rick Adamo", employees: ["John Doe", "Jane Smith"] },
+                    { name: "Dave Huddle", employees: ["Emp X", "Emp Y"] }
+                ]},
+                { name: "Raju V.", ll6s: [
+                    { name: "Supervisor A", employees: ["Staff 1"] }
+                ]}
+            ],
+            entries: []
+        };
+
+        const DAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+        function init() {
+            const saved = localStorage.getItem('ford_ot_v10');
+            if (saved) state = JSON.parse(saved);
+            populateDropdowns();
+            refreshUI();
+            renderWorksheetForm();
+            renderDaysEntry();
+            document.getElementById('set-rate').value = state.rate;
+        }
+
+        function populateDropdowns() {
+            const yrSel = document.getElementById('jump-year');
+            const wkSel = document.getElementById('jump-week');
+            const currentYear = new Date().getFullYear();
+            yrSel.innerHTML = '';
+            for(let y = currentYear - 2; y <= currentYear + 3; y++) yrSel.innerHTML += `<option value="${y}">${y}</option>`;
+            yrSel.value = currentYear;
+            wkSel.innerHTML = '';
+            for(let w = 1; w <= 53; w++) wkSel.innerHTML += `<option value="${w}">Week ${w}</option>`;
+        }
+
+        function getWeekData(offset) {
+            const today = new Date();
+            let d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            d.setDate(d.getDate() - d.getDay() + (offset * 7));
+            const sunday = new Date(d);
+            const saturday = new Date(d);
+            saturday.setDate(saturday.getDate() + 6);
+            const year = sunday.getFullYear();
+            const jan1 = new Date(year, 0, 1);
+            const jan1Day = jan1.getDay();
+            const firstSunday = new Date(year, 0, 1 + (jan1Day === 0 ? 0 : 7 - jan1Day));
+            let weekNum = sunday < firstSunday ? 1 : Math.floor((sunday - firstSunday) / (86400000 * 7)) + 1;
+            return { sunday, saturday, weekNum, weekKey: `${year}-W${String(weekNum).padStart(2, '0')}`, year };
+        }
+
+        function jumpToWeek() {
+            const targetYear = parseInt(document.getElementById('jump-year').value);
+            const targetWeek = parseInt(document.getElementById('jump-week').value);
+            const jan1 = new Date(targetYear, 0, 1);
+            const jan1Day = jan1.getDay();
+            const firstSunday = new Date(targetYear, 0, 1 + (jan1Day === 0 ? 0 : 7 - jan1Day));
+            const targetSunday = new Date(firstSunday);
+            targetSunday.setDate(firstSunday.getDate() + ((targetWeek - 1) * 7));
+            const today = new Date();
+            const currentSunday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            currentSunday.setDate(currentSunday.getDate() - currentSunday.getDay());
+            state.viewOffset = Math.round((targetSunday - currentSunday) / (86400000 * 7));
+            refreshUI();
+        }
+
+        function changeWeek(dir) { state.viewOffset += dir; refreshUI(); }
+
+        function refreshUI() {
+            const week = getWeekData(state.viewOffset);
+            document.getElementById('current-week-range').innerText = `${week.year} | WEEK ${week.weekNum}: ${week.sunday.toLocaleDateString()} - ${week.saturday.toLocaleDateString()}`;
+            document.getElementById('label-annual-budget').innerText = `${week.year} Budget`;
+            document.getElementById('jump-year').value = week.year;
+            document.getElementById('jump-week').value = week.weekNum;
+
+            const annualBudget = state.budgetsByYear[week.year] || 0;
+            const spentInYear = state.entries.filter(e => e.weekKey.startsWith(week.year.toString())).reduce((sum, e) => sum + e.cost, 0);
+            const weeklyActual = state.entries.filter(e => e.weekKey === week.weekKey).reduce((sum, e) => sum + e.cost, 0);
+            const weeklyBudgetBasis = annualBudget / 52;
+
+            document.getElementById('stat-total-budget').innerText = `$${annualBudget.toLocaleString()}`;
+            document.getElementById('stat-annual-remain').innerText = `$${(annualBudget - spentInYear).toLocaleString()}`;
+            document.getElementById('stat-weekly-budget').innerText = `$${weeklyBudgetBasis.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+            document.getElementById('stat-max-hours').innerText = `${(state.rate > 0 ? (weeklyBudgetBasis / (state.rate * 1.5)) : 0).toFixed(1)} hrs`;
+            document.getElementById('stat-weekly-actual').innerText = `$${weeklyActual.toLocaleString()}`;
+
+            renderHeatmap(week.weekKey);
+        }
+
+        function renderHeatmap(weekKey) {
+            const container = document.getElementById('worksheet-summary');
+            container.innerHTML = '';
+            state.ll5s.forEach(ll5 => {
+                let html = `<div class="ll5-group"><div class="ll5-header">LL5: ${ll5.name}</div>`;
+                html += `<table class="dashboard-table"><thead><tr><th>Supervisor (LL6) / Employee</th>`;
+                DAYS.forEach(d => html += `<th>${d}</th>`);
+                html += `<th>Total Cost</th></tr></thead><tbody>`;
+
+                ll5.ll6s.forEach(ll6 => {
+                    let ll6Entries = state.entries.filter(e => e.ll6 === ll6.name && e.ll5 === ll5.name && e.weekKey === weekKey);
+                    let dailyTotals = [0,0,0,0,0,0,0];
+                    let ll6Cost = ll6Entries.reduce((sum, e) => {
+                        e.hrs.forEach((h, i) => dailyTotals[i] += h);
+                        return sum + e.cost;
+                    }, 0);
+                    
+                    const safeID = (ll5.name + ll6.name).replace(/[^a-z0-9]/gi, '');
+                    html += `<tr class="row-ll6" onclick="toggleDrillDown('${safeID}')">
+                        <td>${ll6.name} ▾</td>
+                        ${dailyTotals.map(t => `<td class="day-cell ${t>0?'active':''}">${t}</td>`).join('')}
+                        <td style="font-weight:800">$${ll6Cost.toLocaleString()}</td>
+                    </tr>`;
+                    
+                    ll6Entries.forEach((e) => {
+                        const globalIdx = state.entries.indexOf(e);
+                        html += `<tr class="row-emp drill-${safeID}">
+                            <td style="padding-left:30px; color:#64748b;">
+                                ↳ ${e.emp}
+                                <div class="tooltip">ⓘ
+                                    <span class="tooltip-text">
+                                        <b>Program:</b> ${e.prog || 'N/A'}<br>
+                                        <b>Location:</b> ${e.loc || 'N/A'}<br>
+                                        <b>Reason:</b> ${e.reason || 'N/A'}
+                                    </span>
+                                </div>
+                                <span class="edit-btn" onclick="editEntry(${globalIdx})">✏️</span>
+                            </td>
+                            ${e.hrs.map(h => `<td class="day-cell" style="font-size:11px; color:#94a3b8">${h}</td>`).join('')}
+                            <td style="color:#94a3b8">$${e.cost.toLocaleString()}</td>
+                        </tr>`;
+                    });
+                });
+                container.innerHTML += html + `</tbody></table></div>`;
+            });
+        }
+
+        function toggleDrillDown(className) { document.querySelectorAll(`.drill-${className}`).forEach(r => r.classList.toggle('visible')); }
+
+        function updateLL6Dropdown() {
+            const ll5 = state.ll5s.find(l => l.name === document.getElementById('sel-ll5').value);
+            document.getElementById('sel-ll6').innerHTML = (ll5 && ll5.ll6s) ? ll5.ll6s.map(l => `<option value="${l.name}">${l.name}</option>`).join('') : '';
+            updateEmployeeDropdown();
+        }
+
+        function updateEmployeeDropdown() {
+            const ll5 = state.ll5s.find(l => l.name === document.getElementById('sel-ll5').value);
+            const ll6 = ll5 ? ll5.ll6s.find(l => l.name === document.getElementById('sel-ll6').value) : null;
+            document.getElementById('sel-emp').innerHTML = (ll6 && ll6.employees) ? ll6.employees.map(e => `<option value="${e}">${e}</option>`).join('') : '';
+        }
+
+        function renderWorksheetForm() {
+            document.getElementById('sel-ll5').innerHTML = state.ll5s.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+            updateLL6Dropdown();
+        }
+
+        function addEntry() {
+            const week = getWeekData(state.viewOffset);
+            const emp = document.getElementById('sel-emp').value;
+            let hrs = []; let totalHrs = 0;
+            for(let i=0; i<7; i++) {
+                let v = parseFloat(document.getElementById(`hrs-${i}`).value || 0);
+                hrs.push(v); totalHrs += v;
+            }
+            if(totalHrs === 0 || !emp) return alert("Enter hours and select employee.");
+            state.entries.push({ 
+                weekKey: week.weekKey, 
+                ll5: document.getElementById('sel-ll5').value, 
+                ll6: document.getElementById('sel-ll6').value, 
+                emp, 
+                prog: document.getElementById('in-prog').value || "N/A", 
+                loc: document.getElementById('in-loc').value || "N/A", 
+                reason: document.getElementById('in-reason').value || "N/A", 
+                hrs, 
+                cost: totalHrs * state.rate * 1.5 
+            });
+            save(); refreshUI(); resetForm();
+        }
+
+        function editEntry(index) {
+            const entry = state.entries[index];
+            document.getElementById('sel-ll5').value = entry.ll5;
+            updateLL6Dropdown();
+            document.getElementById('sel-ll6').value = entry.ll6;
+            updateEmployeeDropdown();
+            document.getElementById('sel-emp').value = entry.emp;
+            document.getElementById('in-prog').value = entry.prog;
+            document.getElementById('in-loc').value = entry.loc || "";
+            document.getElementById('in-reason').value = entry.reason || "";
+            entry.hrs.forEach((h, i) => document.getElementById(`hrs-${i}`).value = h);
+            state.entries.splice(index, 1);
+            save(); refreshUI();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            document.getElementById('in-prog').value = "";
+            document.getElementById('in-loc').value = "";
+            document.getElementById('in-reason').value = "";
+            for(let i=0; i<7; i++) document.getElementById(`hrs-${i}`).value = 0;
+        }
+
+        function renderSettings() {
+            document.getElementById('year-list').innerHTML = Object.keys(state.budgetsByYear).sort().map(yr => `
+                <div class="year-row"><span><strong>${yr}</strong>: $${state.budgetsByYear[yr].toLocaleString()}</span>
+                <button class="btn btn-danger" style="padding:4px 8px; font-size:10px" onclick="removeYearBudget('${yr}')">Delete</button></div>`).join('');
+            
+            document.getElementById('settings-hierarchy').innerHTML = `
+                <div class="form-grid"><div class="input-group"><label>Add New LL5</label><input type="text" id="new-ll5"></div>
+                <button class="btn btn-primary" style="align-self:end" onclick="addLL5()">Add LL5</button></div>` + 
+                state.ll5s.map((ll5, lIdx) => `<div class="panel"><strong>LL5: ${ll5.name}</strong>...</div>`).join(''); // Shortened for display
+        }
+
+        function addYearBudget() {
+            const yr = document.getElementById('set-new-year').value;
+            if(!yr) return;
+            state.budgetsByYear[yr] = parseFloat(document.getElementById('set-new-budget').value) || 0;
+            save(); renderSettings(); populateDropdowns();
+        }
+
+        function removeYearBudget(yr) { delete state.budgetsByYear[yr]; save(); renderSettings(); populateDropdowns(); }
+        function addLL5() {
+            const name = document.getElementById('new-ll5').value;
+            if(!name) return;
+            state.ll5s.push({ name, ll6s: [] });
+            save(); renderSettings(); renderWorksheetForm();
+        }
+
+        function save() {
+            state.rate = parseFloat(document.getElementById('set-rate').value) || 0;
+            localStorage.setItem('ford_ot_v10', JSON.stringify(state));
+            refreshUI();
+        }
+
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('closed'); }
+        function switchView(view) {
+            document.querySelectorAll('.view-content').forEach(v => v.classList.add('hidden'));
+            document.getElementById(`view-${view}`).classList.remove('hidden');
+            if(view === 'settings') renderSettings();
+            refreshUI();
+        }
+
+        function renderDaysEntry() {
+            document.getElementById('days-entry').innerHTML = DAYS.map((d, i) => `<div class="day-input-box"><span>${d}</span><input type="number" id="hrs-${i}" value="0"></div>`).join('');
+        }
+
+        init();
+    </script>
+</body>
+</html>
