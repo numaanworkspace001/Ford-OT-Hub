@@ -84,7 +84,7 @@
                 </div>
                 <button onclick="changeWeek(1)" class="p-3 hover:bg-slate-100 rounded-lg font-bold text-lg">▶</button>
                 <div class="flex gap-1 items-center border-l border-slate-200 pl-3">
-                    <select id="jump-year" onchange="jumpToWeek()" class="p-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#003478] cursor-pointer min-w-16">
+                    <select id="jump-year" onchange="handleYearChange()" class="p-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#003478] cursor-pointer min-w-16">
                     </select>
                     <select id="jump-week" onchange="jumpToWeek()" class="p-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#003478] cursor-pointer min-w-20">
                     </select>
@@ -92,13 +92,6 @@
             </div>
 
             <div id="view-worksheet" class="space-y-4">
-                <div class="app-card p-4">
-                    <label class="flex items-center gap-2 mb-3">
-                        <span class="text-xs font-bold text-slate-500 uppercase">Select Year:</span>
-                        <select id="worksheet-year-selector" onchange="switchToYear()" class="p-2 rounded-lg bg-slate-50 border border-slate-300 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#003478]"></select>
-                    </label>
-                </div>
-
                 <div class="grid grid-cols-2 gap-3">
                     <div class="app-card p-4">
                         <p class="text-[10px] font-bold text-slate-400 uppercase">Target ($)</p>
@@ -141,6 +134,16 @@
                             <span class="text-xs font-bold text-slate-500 uppercase">1st Day of Budget Year</span>
                             <input type="date" id="settings-week-start" onchange="saveBudgetForYear()" class="w-full mt-2 p-3 bg-slate-50 rounded-xl font-bold text-sm border-none focus:ring-2 focus:ring-[#003478]">
                         </label>
+                    </div>
+                </div>
+
+                <div class="app-card p-6">
+                    <h3 class="font-black mb-4 text-lg">OT Rates by Location</h3>
+                    <div class="space-y-3 mb-4" id="rates-list"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-location-input" placeholder="Location (e.g., US, Mexico)" class="flex-1 p-3 bg-slate-50 rounded-xl border-none font-bold focus:ring-2 focus:ring-[#003478]">
+                        <input type="number" id="new-rate-input" placeholder="Rate ($)" class="flex-1 p-3 bg-slate-50 rounded-xl border-none font-bold focus:ring-2 focus:ring-[#003478]" min="0" step="0.01">
+                        <button onclick="addNewRate()" class="bg-[#003478] text-white px-4 rounded-xl font-black whitespace-nowrap">Add</button>
                     </div>
                 </div>
 
@@ -210,19 +213,38 @@
         </div>
     </div>
 
+    <!-- Edit Modal for Names, Rates, etc -->
+    <div id="edit-modal" class="modal-hidden fixed inset-0 bg-black/60 z-[60] flex flex-col justify-center items-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl">
+            <div class="flex justify-between items-center p-6 border-b border-slate-200">
+                <h2 class="text-lg font-black text-slate-800" id="edit-modal-title">Edit Item</h2>
+                <button onclick="closeEditModal()" class="text-slate-400 text-2xl font-bold">×</button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div id="edit-modal-content"></div>
+            </div>
+
+            <div class="border-t border-slate-200 p-6 flex gap-3">
+                <button onclick="if(confirmData.isConfirm) closeConfirm(); else closeEditModal();" class="flex-1 bg-slate-200 text-slate-700 py-3 rounded-xl font-black">Cancel</button>
+                <button onclick="if(confirmData.isConfirm) submitConfirm(); else submitEditModal();" class="flex-1 bg-[#003478] text-white py-3 rounded-xl font-black">Save</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let state = {
             budgetsByYear: { "2026": 1000000 },
             weekStartDates: { "2026": "2026-01-01" },
-            rate: 55,
+            rates: { "US": 55, "Mexico": 48 },
             viewOffset: 0,
             ll5s: [
                 { name: "Damian Off", ll6s: [
-                    { name: "Rick Adamo", employees: ["John Doe", "Jane Smith"] },
-                    { name: "Dave Huddle", employees: ["Staff A", "Staff B"] }
+                    { name: "Rick Adamo", employees: [{name: "John Doe", rateLocation: "US"}, {name: "Jane Smith", rateLocation: "US"}] },
+                    { name: "Dave Huddle", employees: [{name: "Staff A", rateLocation: "US"}, {name: "Staff B", rateLocation: "Mexico"}] }
                 ]},
                 { name: "Raju V.", ll6s: [
-                    { name: "Supervisor X", employees: ["Team member"] }
+                    { name: "Supervisor X", employees: [{name: "Team member", rateLocation: "US"}] }
                 ]}
             ],
             entries: []
@@ -234,25 +256,42 @@
             const saved = localStorage.getItem('ford_ot_v3_mobile');
             if (saved) state = JSON.parse(saved);
             
+            // Migrate old data format
+            if (state.rate && !state.rates) {
+                state.rates = { "US": state.rate, "Mexico": state.rate * 0.87 };
+                delete state.rate;
+            }
+            
+            // Ensure rates object exists
+            if (!state.rates) {
+                state.rates = { "US": 55, "Mexico": 48 };
+            }
+            
+            // Migrate employees from strings to objects
+            state.ll5s.forEach(ll5 => {
+                ll5.ll6s.forEach(ll6 => {
+                    if (ll6.employees && ll6.employees.length > 0 && typeof ll6.employees[0] === 'string') {
+                        ll6.employees = ll6.employees.map(emp => ({
+                            name: emp,
+                            rateLocation: Object.keys(state.rates)[0] || "US"
+                        }));
+                    }
+                });
+            });
+            
+            // Reset viewOffset to 0 (today)
+            state.viewOffset = 0;
+            
             renderModalDays();
             populateDropdowns();
-            populateWorksheetYearSelector();
             populateJumpSelectors();
             refreshUI();
             switchView('worksheet');
         }
 
-        function populateWorksheetYearSelector() {
-            const yearSel = document.getElementById('worksheet-year-selector');
-            yearSel.innerHTML = Object.keys(state.budgetsByYear).sort().map(y => 
-                `<option value="${y}">${y}</option>`
-            ).join('');
-            const currentYear = new Date().getFullYear();
-            yearSel.value = state.budgetsByYear[currentYear] ? currentYear : Object.keys(state.budgetsByYear)[0];
-        }
 
         function switchToYear() {
-            const selectedYear = parseInt(document.getElementById('worksheet-year-selector').value);
+            const selectedYear = parseInt(document.getElementById('jump-year').value);
             // Jump to Week 1 of selected year
             let week1Start;
             if (state.weekStartDates[selectedYear]) {
@@ -284,16 +323,18 @@
             document.getElementById('header-date-title').innerText = `${week.year}`;
             document.getElementById('display-week-label').innerText = `WEEK ${week.weekNum} OF ${week.year}`;
             document.getElementById('display-range-label').innerText = week.range;
-            document.getElementById('set-rate').value = state.rate;
-            document.getElementById('worksheet-year-selector').value = week.year;
 
             const annualBudget = state.budgetsByYear[week.year] || 0;
             const spentInYear = state.entries.filter(e => e.weekKey.startsWith(week.year)).reduce((s, e) => s + e.cost, 0);
             const spentThisWeek = state.entries.filter(e => e.weekKey === week.key).reduce((s, e) => s + e.cost, 0);
             
+            // Calculate dynamic budget: remaining budget / remaining weeks
+            const remainingBudget = annualBudget - spentInYear;
+            const remainingWeeks = Math.max(1, 53 - week.weekNum); // Weeks left in year
+            const dynamicWeeklyTarget = Math.max(0, remainingBudget / remainingWeeks);
+            
             document.getElementById('stat-annual-budget').innerText = `$${annualBudget.toLocaleString()}`;
-            document.getElementById('stat-annual-remain').innerText = `$${(annualBudget - spentInYear).toLocaleString()}`;
-            document.getElementById('stat-week-target').innerText = `$${(annualBudget / 52).toLocaleString(undefined, {maximumFractionDigits:0})}`;
+            document.getElementById('stat-week-target').innerText = `$${dynamicWeeklyTarget.toLocaleString(undefined, {maximumFractionDigits:0})}`;
             document.getElementById('stat-week-actual').innerText = `$${spentThisWeek.toLocaleString()}`;
 
             populateJumpSelectors();
@@ -382,16 +423,19 @@
                         rows += `
                             <tr class="emp-row-${safeID} hidden border-b border-slate-50 bg-slate-50/50">
                                 <td class="p-4 pl-10 text-sm">
-                                    <div class="flex items-center gap-2">
-                                        <span>↳ ${e.emp}</span>
-                                        <div class="relative group inline">
-                                            <span class="cursor-help text-[#0060b6] font-bold">ⓘ</span>
-                                            <div class="hidden group-hover:block absolute bg-slate-800 text-white text-xs rounded p-2 z-50 whitespace-nowrap top-0 left-6 shadow-lg">
-                                                <div class="font-bold text-amber-300">Program: ${e.prog || 'N/A'}</div>
-                                                <div class="font-bold text-amber-300">Location: ${e.loc || 'N/A'}</div>
-                                                <div class="font-bold text-amber-300">Reason: ${e.reason || 'N/A'}</div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span>↳ ${e.emp}</span>
+                                            <div class="relative group inline">
+                                                <span class="cursor-help text-[#0060b6] font-bold">ⓘ</span>
+                                                <div class="hidden group-hover:block absolute bg-slate-800 text-white text-xs rounded p-2 z-50 whitespace-nowrap top-0 left-6 shadow-lg">
+                                                    <div class="font-bold text-amber-300">Program: ${e.prog || 'N/A'}</div>
+                                                    <div class="font-bold text-amber-300">Location: ${e.loc || 'N/A'}</div>
+                                                    <div class="font-bold text-amber-300">Reason: ${e.reason || 'N/A'}</div>
+                                                </div>
                                             </div>
                                         </div>
+                                        <button onclick="editEntry(${globalIdx})" class="text-blue-500 hover:text-blue-700 font-bold text-xs">✎</button>
                                     </div>
                                 </td>
                                 ${e.hrs.map(h => `<td class="p-4 text-center text-xs text-slate-500">${h}</td>`).join('')}
@@ -426,6 +470,86 @@
         function openModal() { document.getElementById('entry-modal').classList.remove('modal-hidden'); }
         function closeModal() { document.getElementById('entry-modal').classList.add('modal-hidden'); }
 
+        // Edit Modal Functions
+        let editModalData = {};
+        
+        function openEditModal(title, fields, onSubmit) {
+            document.getElementById('edit-modal-title').innerText = title;
+            const contentDiv = document.getElementById('edit-modal-content');
+            contentDiv.innerHTML = fields.map(field => `
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-2">${field.label}</label>
+                    <input type="text" id="edit-field-${field.id}" value="${field.value}" placeholder="${field.placeholder || ''}" class="w-full p-3 bg-slate-100 rounded-xl font-bold border-none focus:ring-2 focus:ring-[#003478]">
+                </div>
+            `).join('');
+            editModalData.onSubmit = onSubmit;
+            document.getElementById('edit-modal').classList.remove('modal-hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('modal-hidden');
+            editModalData = {};
+        }
+
+        function submitEditModal() {
+            if (editModalData.onSubmit) {
+                editModalData.onSubmit();
+            }
+            closeEditModal();
+        }
+
+        // Confirmation Modal
+        let confirmData = {};
+
+        function showConfirm(message, onConfirm) {
+            const contentDiv = document.getElementById('edit-modal-content');
+            contentDiv.innerHTML = `<p class="text-slate-700 font-bold text-center py-4">${message}</p>`;
+            document.getElementById('edit-modal-title').innerText = 'Confirm';
+            
+            // Update button styling for confirmation
+            const cancelBtn = document.querySelector('#edit-modal .border-t + div button:first-child');
+            const confirmBtn = document.querySelector('#edit-modal .border-t + div button:last-child');
+            
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.className = 'flex-1 bg-slate-200 text-slate-700 py-3 rounded-xl font-black';
+            confirmBtn.textContent = 'Confirm';
+            confirmBtn.className = 'flex-1 bg-red-500 text-white py-3 rounded-xl font-black';
+            
+            confirmData.onConfirm = onConfirm;
+            confirmData.isConfirm = true;
+            
+            document.getElementById('edit-modal').classList.remove('modal-hidden');
+        }
+
+        function closeConfirm() {
+            confirmData = {};
+            document.getElementById('edit-modal').classList.add('modal-hidden');
+        }
+
+        function submitConfirm() {
+            if (confirmData.isConfirm && confirmData.onConfirm) {
+                confirmData.onConfirm();
+            }
+            closeConfirm();
+        }
+
+        function showAlert(message) {
+            const contentDiv = document.getElementById('edit-modal-content');
+            contentDiv.innerHTML = `<p class="text-slate-700 font-bold text-center py-4">${message}</p>`;
+            document.getElementById('edit-modal-title').innerText = 'Alert';
+            
+            const cancelBtn = document.querySelector('#edit-modal .border-t + div button:first-child');
+            const confirmBtn = document.querySelector('#edit-modal .border-t + div button:last-child');
+            
+            cancelBtn.textContent = 'OK';
+            cancelBtn.className = 'flex-1 bg-slate-200 text-slate-700 py-3 rounded-xl font-black';
+            cancelBtn.onclick = () => closeEditModal();
+            confirmBtn.style.display = 'none';
+            
+            confirmData.isConfirm = false;
+            document.getElementById('edit-modal').classList.remove('modal-hidden');
+        }
+
         function populateDropdowns() {
             const l5 = document.getElementById('sel-ll5');
             l5.innerHTML = state.ll5s.map(x => `<option value="${x.name}">${x.name}</option>`).join('');
@@ -441,7 +565,16 @@
         function updateEmployeeDropdown() {
             const ll5 = state.ll5s.find(l => l.name === document.getElementById('sel-ll5').value);
             const ll6 = ll5 ? ll5.ll6s.find(l => l.name === document.getElementById('sel-ll6').value) : null;
-            document.getElementById('sel-emp').innerHTML = ll6 ? ll6.employees.map(x => `<option value="${x}">${x}</option>`).join('') : '';
+            if (!ll6) {
+                document.getElementById('sel-emp').innerHTML = '';
+                return;
+            }
+            document.getElementById('sel-emp').innerHTML = ll6.employees.map(emp => {
+                const empName = typeof emp === 'string' ? emp : emp.name;
+                const location = typeof emp === 'string' ? Object.keys(state.rates)[0] || 'US' : (emp.rateLocation || Object.keys(state.rates)[0] || 'US');
+                const rate = state.rates[location] || 55;
+                return `<option value="${empName}">${empName} (${location}: $${rate}/hr)</option>`;
+            }).join('');
         }
 
         function addEntry() {
@@ -454,15 +587,20 @@
             }
             if (total === 0) return alert("Enter hours");
 
+            const ll5 = document.getElementById('sel-ll5').value;
+            const ll6 = document.getElementById('sel-ll6').value;
+            const emp = document.getElementById('sel-emp').value;
+            const rate = getRateForEmployee(ll5, ll6, emp);
+
             state.entries.push({
                 weekKey: week.key,
-                ll5: document.getElementById('sel-ll5').value,
-                ll6: document.getElementById('sel-ll6').value,
-                emp: document.getElementById('sel-emp').value,
+                ll5: ll5,
+                ll6: ll6,
+                emp: emp,
                 prog: document.getElementById('in-prog').value || "Default",
                 loc: document.getElementById('in-loc').value || "N/A",
                 reason: document.getElementById('in-reason').value || "N/A",
-                cost: total * state.rate * 1.5,
+                cost: total * rate * 1.5,
                 hrs
             });
 
@@ -490,11 +628,11 @@
         }
 
         function removeYearBudget(yr) {
-            if (confirm(`Delete budget for ${yr}?`)) {
+            showConfirm(`Delete budget for ${yr}?`, () => {
                 delete state.budgetsByYear[yr];
                 save();
                 renderSettings();
-            }
+            });
         }
 
         function renderSettings() {
@@ -504,6 +642,24 @@
             ).join('');
             updateBudgetForm();
             renderHierarchy();
+            renderRatesList();
+        }
+
+        function getRateForEmployee(ll5Name, ll6Name, empName) {
+            const ll5 = state.ll5s.find(l => l.name === ll5Name);
+            if (!ll5) return state.rates[Object.keys(state.rates)[0]] || 55;
+            
+            const ll6 = ll5.ll6s.find(l => l.name === ll6Name);
+            if (!ll6) return state.rates[Object.keys(state.rates)[0]] || 55;
+            
+            const emp = ll6.employees.find(e => {
+                const name = typeof e === 'string' ? e : e.name;
+                return name === empName;
+            });
+            if (!emp) return state.rates[Object.keys(state.rates)[0]] || 55;
+            
+            const location = typeof emp === 'string' ? Object.keys(state.rates)[0] || 'US' : (emp.rateLocation || Object.keys(state.rates)[0] || 'US');
+            return state.rates[location] || 55;
         }
 
         function updateBudgetForm() {
@@ -523,7 +679,6 @@
             state.budgetsByYear[year] = budget;
             state.weekStartDates[year] = weekStart;
             save();
-            populateWorksheetYearSelector();
             refreshUI();
         }
 
@@ -532,12 +687,12 @@
             const year = yearInput.value.trim();
             
             if (!year) {
-                alert('Please enter a year');
+                showAlert('Please enter a year');
                 return;
             }
             
             if (state.budgetsByYear[year]) {
-                alert(`Year ${year} already exists`);
+                showAlert(`Year ${year} already exists`);
                 return;
             }
             
@@ -574,18 +729,28 @@
                                 </div>
                                 <div class="text-xs text-slate-500 mb-2">${ll6.employees.length} employee(s)</div>
                                 <div class="space-y-1 mb-2">
-                                    ${ll6.employees.map((emp, empIdx) => `
-                                        <div class="flex justify-between items-center text-xs bg-slate-100 p-2 rounded">
-                                            <span>↳ ${emp}</span>
-                                            <div class="flex gap-1">
-                                                <button onclick="editEmployee(${ll5Idx}, ${ll6Idx}, ${empIdx})" class="text-blue-500 hover:text-blue-700 font-bold text-xs">✎</button>
-                                                <button onclick="removeEmployee(${ll5Idx}, ${ll6Idx}, ${empIdx})" class="text-red-500 hover:text-red-700 font-bold text-xs">×</button>
+                                    ${ll6.employees.map((emp, empIdx) => {
+                                        const empName = typeof emp === 'string' ? emp : emp.name;
+                                        const empLocation = typeof emp === 'string' ? Object.keys(state.rates)[0] || 'US' : (emp.rateLocation || Object.keys(state.rates)[0] || 'US');
+                                        return `
+                                            <div class="flex justify-between items-center text-xs bg-slate-100 p-2 rounded">
+                                                <div>
+                                                    <div>↳ ${empName}</div>
+                                                    <div class="text-[10px] text-slate-500 italic">Rate: ${empLocation} ($${state.rates[empLocation] || 0}/hr)</div>
+                                                </div>
+                                                <div class="flex gap-1">
+                                                    <button onclick="editEmployee(${ll5Idx}, ${ll6Idx}, ${empIdx})" class="text-blue-500 hover:text-blue-700 font-bold text-xs">✎</button>
+                                                    <button onclick="removeEmployee(${ll5Idx}, ${ll6Idx}, ${empIdx})" class="text-red-500 hover:text-red-700 font-bold text-xs">×</button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    `).join('')}
+                                        `;
+                                    }).join('')}
                                 </div>
-                                <div class="flex gap-2">
+                                <div class="flex gap-2 mb-2">
                                     <input type="text" id="new-emp-${ll5Idx}-${ll6Idx}" placeholder="Add employee" class="flex-1 p-2 bg-white border border-slate-200 rounded text-xs">
+                                    <select id="new-emp-loc-${ll5Idx}-${ll6Idx}" class="p-2 bg-white border border-slate-200 rounded text-xs font-bold">
+                                        ${Object.keys(state.rates).map(loc => `<option value="${loc}">${loc}</option>`).join('')}
+                                    </select>
                                     <button onclick="addEmployee(${ll5Idx}, ${ll6Idx})" class="bg-emerald-500 text-white px-3 rounded text-xs font-bold">+</button>
                                 </div>
                             </div>
@@ -598,36 +763,139 @@
                     </div>
                 </div>
             `).join('');
+            renderRatesList();
+        }
+
+        function renderRatesList() {
+            const ratesList = document.getElementById('rates-list');
+            if (!ratesList) return;
+            ratesList.innerHTML = Object.entries(state.rates).map(([location, rate]) => `
+                <div class="flex justify-between items-center bg-slate-100 p-3 rounded-lg">
+                    <div>
+                        <p class="font-bold text-slate-700">${location}</p>
+                        <p class="text-sm font-bold text-emerald-600">$${rate.toFixed(2)}/hr</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editRate('${location}')" class="text-blue-500 hover:text-blue-700 font-bold text-xs">✎</button>
+                        <button onclick="deleteRate('${location}')" class="text-red-500 hover:text-red-700 font-bold text-xs">×</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addNewRate() {
+            const location = document.getElementById('new-location-input').value.trim();
+            const rate = parseFloat(document.getElementById('new-rate-input').value);
+            
+            if (!location) {
+                showAlert('Enter a location name');
+                return;
+            }
+            if (isNaN(rate) || rate < 0) {
+                showAlert('Enter a valid rate');
+                return;
+            }
+            if (state.rates[location]) {
+                showAlert(`${location} rate already exists`);
+                return;
+            }
+            
+            state.rates[location] = rate;
+            document.getElementById('new-location-input').value = '';
+            document.getElementById('new-rate-input').value = '';
+            save();
+            renderHierarchy();
+        }
+
+        function editRate(location) {
+            openEditModal(`Edit Rate: ${location}`, [
+                { id: 'rate', label: 'Rate ($/hr)', value: state.rates[location], placeholder: 'Enter rate' }
+            ], () => {
+                const newRate = parseFloat(document.getElementById('edit-field-rate').value);
+                if (!isNaN(newRate) && newRate >= 0) {
+                    state.rates[location] = newRate;
+                    save();
+                    renderHierarchy();
+                }
+            });
+        }
+
+        function deleteRate(location) {
+            if (Object.keys(state.rates).length === 1) {
+                showAlert('You must keep at least one rate');
+                return;
+            }
+            showConfirm(`Delete ${location} rate?`, () => {
+                delete state.rates[location];
+                save();
+                renderHierarchy();
+            });
         }
 
         function editLL5Name(ll5Idx) {
-            const newName = prompt(`Edit manager name:`, state.ll5s[ll5Idx].name);
-            if (newName && newName.trim()) {
-                state.ll5s[ll5Idx].name = newName.trim();
-                save();
-                renderHierarchy();
-                populateDropdowns();
-            }
+            openEditModal(`Edit Manager Name`, [
+                { id: 'name', label: 'Manager Name', value: state.ll5s[ll5Idx].name, placeholder: 'Enter name' }
+            ], () => {
+                const newName = document.getElementById('edit-field-name').value.trim();
+                if (newName) {
+                    state.ll5s[ll5Idx].name = newName;
+                    save();
+                    renderHierarchy();
+                    populateDropdowns();
+                }
+            });
         }
 
         function editLL6Name(ll5Idx, ll6Idx) {
-            const newName = prompt(`Edit supervisor name:`, state.ll5s[ll5Idx].ll6s[ll6Idx].name);
-            if (newName && newName.trim()) {
-                state.ll5s[ll5Idx].ll6s[ll6Idx].name = newName.trim();
-                save();
-                renderHierarchy();
-                populateDropdowns();
-            }
+            openEditModal(`Edit Supervisor Name`, [
+                { id: 'name', label: 'Supervisor Name', value: state.ll5s[ll5Idx].ll6s[ll6Idx].name, placeholder: 'Enter name' }
+            ], () => {
+                const newName = document.getElementById('edit-field-name').value.trim();
+                if (newName) {
+                    state.ll5s[ll5Idx].ll6s[ll6Idx].name = newName;
+                    save();
+                    renderHierarchy();
+                    populateDropdowns();
+                }
+            });
         }
 
         function editEmployee(ll5Idx, ll6Idx, empIdx) {
-            const newName = prompt(`Edit employee name:`, state.ll5s[ll5Idx].ll6s[ll6Idx].employees[empIdx]);
-            if (newName && newName.trim()) {
-                state.ll5s[ll5Idx].ll6s[ll6Idx].employees[empIdx] = newName.trim();
-                save();
-                renderHierarchy();
-                populateDropdowns();
-            }
+            const emp = state.ll5s[ll5Idx].ll6s[ll6Idx].employees[empIdx];
+            const empName = typeof emp === 'string' ? emp : emp.name;
+            const empLocation = typeof emp === 'string' ? Object.keys(state.rates)[0] || 'US' : (emp.rateLocation || Object.keys(state.rates)[0] || 'US');
+            
+            const locations = Object.keys(state.rates);
+            const locationsHtml = locations.map(loc => `<option value="${loc}" ${loc === empLocation ? 'selected' : ''}>${loc}</option>`).join('');
+            
+            const contentDiv = document.getElementById('edit-modal-content');
+            contentDiv.innerHTML = `
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Employee Name</label>
+                    <input type="text" id="edit-emp-name" value="${empName}" placeholder="Enter name" class="w-full p-3 bg-slate-100 rounded-xl font-bold border-none focus:ring-2 focus:ring-[#003478]">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Rate Location</label>
+                    <select id="edit-emp-location" class="w-full p-3 bg-slate-100 rounded-xl font-bold border-none focus:ring-2 focus:ring-[#003478]">
+                        ${locationsHtml}
+                    </select>
+                </div>
+            `;
+            document.getElementById('edit-modal-title').innerText = 'Edit Employee';
+            editModalData.onSubmit = () => {
+                const newName = document.getElementById('edit-emp-name').value.trim();
+                const newLocation = document.getElementById('edit-emp-location').value;
+                if (newName) {
+                    state.ll5s[ll5Idx].ll6s[ll6Idx].employees[empIdx] = {
+                        name: newName,
+                        rateLocation: newLocation
+                    };
+                    save();
+                    renderHierarchy();
+                    populateDropdowns();
+                }
+            };
+            document.getElementById('edit-modal').classList.remove('modal-hidden');
         }
 
         function setWeek1StartDate(year) {
@@ -651,18 +919,22 @@
         }
 
         function removeLL6(ll5Idx, ll6Idx) {
-            if (confirm(`Remove ${state.ll5s[ll5Idx].ll6s[ll6Idx].name}?`)) {
+            showConfirm(`Remove ${state.ll5s[ll5Idx].ll6s[ll6Idx].name}?`, () => {
                 state.ll5s[ll5Idx].ll6s.splice(ll6Idx, 1);
                 save();
                 renderSettings();
                 populateDropdowns();
-            }
+            });
         }
 
         function addEmployee(ll5Idx, ll6Idx) {
             const name = document.getElementById(`new-emp-${ll5Idx}-${ll6Idx}`).value;
+            const location = document.getElementById(`new-emp-loc-${ll5Idx}-${ll6Idx}`).value;
             if (!name) return;
-            state.ll5s[ll5Idx].ll6s[ll6Idx].employees.push(name);
+            state.ll5s[ll5Idx].ll6s[ll6Idx].employees.push({
+                name: name,
+                rateLocation: location
+            });
             document.getElementById(`new-emp-${ll5Idx}-${ll6Idx}`).value = '';
             save();
             renderSettings();
@@ -670,12 +942,16 @@
         }
 
         function removeEmployee(ll5Idx, ll6Idx, empIdx) {
-            if (confirm(`Remove ${state.ll5s[ll5Idx].ll6s[ll6Idx].employees[empIdx]}?`)) {
+            const empName = typeof state.ll5s[ll5Idx].ll6s[ll6Idx].employees[empIdx] === 'string' 
+                ? state.ll5s[ll5Idx].ll6s[ll6Idx].employees[empIdx]
+                : state.ll5s[ll5Idx].ll6s[ll6Idx].employees[empIdx].name;
+            
+            showConfirm(`Remove ${empName}?`, () => {
                 state.ll5s[ll5Idx].ll6s[ll6Idx].employees.splice(empIdx, 1);
                 save();
                 renderSettings();
                 populateDropdowns();
-            }
+            });
         }
 
         function addLL5() {
@@ -689,12 +965,107 @@
         }
 
         function removeLL5(ll5Idx) {
-            if (confirm(`Remove ${state.ll5s[ll5Idx].name}?`)) {
+            showConfirm(`Remove ${state.ll5s[ll5Idx].name}?`, () => {
                 state.ll5s.splice(ll5Idx, 1);
                 save();
                 renderSettings();
                 populateDropdowns();
+            });
+        }
+
+        function editEntry(entryIdx) {
+            const entry = state.entries[entryIdx];
+            if (!entry) return;
+            
+            // Pre-populate modal with entry data
+            document.getElementById('sel-ll5').value = entry.ll5;
+            updateLL6Dropdown();
+            document.getElementById('sel-ll6').value = entry.ll6;
+            updateEmployeeDropdown();
+            document.getElementById('sel-emp').value = entry.emp;
+            document.getElementById('in-prog').value = entry.prog;
+            document.getElementById('in-loc').value = entry.loc;
+            document.getElementById('in-reason').value = entry.reason;
+            
+            for(let i = 0; i < 7; i++) {
+                document.getElementById(`hrs-${i}`).value = entry.hrs[i] || 0;
             }
+            
+            // Show modal with delete option
+            openModal();
+            
+            // Change submit button to "Update" temporarily
+            const submitBtn = document.querySelector('[onclick="addEntry()"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = 'Update Entry';
+            submitBtn.onclick = () => updateEntry(entryIdx);
+            
+            // Show delete button in modal
+            let deleteBtn = document.getElementById('entry-delete-btn');
+            if (!deleteBtn) {
+                deleteBtn = document.createElement('button');
+                deleteBtn.id = 'entry-delete-btn';
+                deleteBtn.className = 'w-full bg-red-500 text-white py-3 rounded-2xl font-black text-sm mt-2 active:scale-95 transition';
+                deleteBtn.textContent = 'Delete Entry';
+                submitBtn.parentElement.appendChild(deleteBtn);
+            }
+            deleteBtn.style.display = 'block';
+            deleteBtn.onclick = () => deleteEntry(entryIdx);
+        }
+
+        function updateEntry(entryIdx) {
+            const entry = state.entries[entryIdx];
+            const hrs = [];
+            let total = 0;
+            for(let i=0; i<7; i++) {
+                const val = parseFloat(document.getElementById(`hrs-${i}`).value || 0);
+                hrs.push(val); total += val;
+            }
+            if (total === 0) {
+                showAlert('Please enter hours');
+                return;
+            }
+
+            entry.ll5 = document.getElementById('sel-ll5').value;
+            entry.ll6 = document.getElementById('sel-ll6').value;
+            entry.emp = document.getElementById('sel-emp').value;
+            entry.prog = document.getElementById('in-prog').value || "Default";
+            entry.loc = document.getElementById('in-loc').value || "N/A";
+            entry.reason = document.getElementById('in-reason').value || "N/A";
+            entry.hrs = hrs;
+            const rate = getRateForEmployee(entry.ll5, entry.ll6, entry.emp);
+            entry.cost = total * rate * 1.5;
+
+            save();
+            closeModal();
+            refreshUI();
+            
+            // Reset button
+            const submitBtn = document.querySelector('[onclick="addEntry()"]');
+            submitBtn.textContent = 'Submit Entry';
+            submitBtn.onclick = () => addEntry();
+            document.getElementById('entry-delete-btn').style.display = 'none';
+        }
+
+        function deleteEntry(entryIdx) {
+            showConfirm('Delete this entry?', () => {
+                state.entries.splice(entryIdx, 1);
+                save();
+                closeModal();
+                
+                // Reset button to normal
+                const submitBtn = document.querySelector('[onclick="addEntry()"]');
+                if (submitBtn) {
+                    submitBtn.textContent = 'Submit Entry';
+                    submitBtn.onclick = () => addEntry();
+                }
+                const deleteBtn = document.getElementById('entry-delete-btn');
+                if (deleteBtn) {
+                    deleteBtn.style.display = 'none';
+                }
+                
+                refreshUI();
+            });
         }
 
         function toggleEmpRows(className) {
@@ -715,7 +1086,6 @@
                     opt.text = y;
                     yrSel.appendChild(opt);
                 }
-                yrSel.addEventListener('change', updateWeeksDropdown);
             }
 
             // Update week dropdown when year changes
@@ -777,6 +1147,43 @@
             refreshUI();
         }
 
+        function handleYearChange() {
+            updateWeeksDropdown();
+            
+            // Find which week today falls into for the selected year
+            const selectedYear = parseInt(document.getElementById('jump-year').value);
+            const today = new Date();
+            
+            let week1Start;
+            if (state.weekStartDates[selectedYear]) {
+                const parts = state.weekStartDates[selectedYear].split('-');
+                week1Start = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            } else {
+                week1Start = new Date(selectedYear, 0, 1);
+            }
+            
+            const daysDiff = Math.floor((today - week1Start) / 86400000);
+            let weekNum = Math.floor(daysDiff / 7) + 1;
+            
+            // If today is before Week 1 start of selected year, set to Week 1
+            if (daysDiff < 0) {
+                weekNum = 1;
+            }
+            
+            // Get max weeks for this year to ensure we don't exceed it
+            const yearEnd = new Date(selectedYear, 11, 31);
+            const totalDays = Math.floor((yearEnd - week1Start) / 86400000);
+            const maxWeeks = Math.floor(totalDays / 7) + 1;
+            
+            // Cap at max weeks if today is after year end
+            if (weekNum > maxWeeks) {
+                weekNum = maxWeeks;
+            }
+            
+            document.getElementById('jump-week').value = weekNum;
+            jumpToWeek();
+        }
+
         function changeWeek(dir) { 
             const currentWeek = getWeekData(state.viewOffset);
             const nextWeek = getWeekData(state.viewOffset + dir);
@@ -806,8 +1213,7 @@
         }
         
         function save() { 
-            state.rate = parseFloat(document.getElementById('set-rate').value) || 0;
-            localStorage.setItem('ford_ot_v3_mobile', JSON.stringify(state)); 
+            localStorage.setItem('ford_ot_v3_mobile', JSON.stringify(state));
             refreshUI();
         }
 
