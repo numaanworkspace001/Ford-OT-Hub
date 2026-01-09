@@ -1,0 +1,49 @@
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: #f1f5f9;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Mobile Bottom Nav Shadow */
+.bottom-nav {
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Card Stylings */
+.app-card {
+    background: white;
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+}
+
+/* Floating Action Button */
+.fab {
+    box-shadow: 0 8px 24px rgba(0, 52, 120, 0.3);
+    transition: transform 0.2s;
+}
+.fab:active { transform: scale(0.9); }
+
+/* Custom Scrollbar for Heatmap */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Modal Animation */
+#entry-modal {
+    transition: transform 0.3s ease-out, opacity 0.3s;
+}
+.modal-hidden {
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.day-input-circle {
+    aspect-ratio: 1/1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: #f8fafc;
+}
