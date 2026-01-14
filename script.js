@@ -46,6 +46,12 @@ function init() {
     if (!state.weekStartDates) {
         state.weekStartDates = {};
     }
+    if (!state.ll5s) {
+        state.ll5s = [];
+    }
+    if (!state.entries) {
+        state.entries = [];
+    }
 
     // Migrate employees from strings to objects
     if (state.ll5s) {

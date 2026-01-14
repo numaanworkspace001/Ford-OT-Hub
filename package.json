@@ -1,0 +1,12 @@
+{
+  "name": "ford-ot-hub",
+  "version": "1.0.0",
+  "description": "A simple overtime tracking tool.",
+  "scripts": {
+    "build": "tailwindcss -i input.css -o output.css"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.1",
+    "@tailwindcss/cli": "^3.4.1"
+  }
+}
