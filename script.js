@@ -12,10 +12,17 @@ let state = {
             { name: "Supervisor X", employees: [{name: "Team member", rateLocation: "US"}] }
         ]}
     ],
-    entries: []
+    entries: [],
+    currentUser: null
 };
 
 const DAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+function orgManager() {
+    return {
+        people: [],
+    };
+}
 
 function init() {
     const saved = localStorage.getItem('ford_ot_v3_mobile');
@@ -32,17 +39,29 @@ function init() {
         state.rates = { "US": 55, "Mexico": 48 };
     }
 
+    // Ensure other core properties exist
+    if (!state.budgetsByYear) {
+        state.budgetsByYear = {};
+    }
+    if (!state.weekStartDates) {
+        state.weekStartDates = {};
+    }
+
     // Migrate employees from strings to objects
-    state.ll5s.forEach(ll5 => {
-        ll5.ll6s.forEach(ll6 => {
-            if (ll6.employees && ll6.employees.length > 0 && typeof ll6.employees[0] === 'string') {
-                ll6.employees = ll6.employees.map(emp => ({
-                    name: emp,
-                    rateLocation: Object.keys(state.rates)[0] || "US"
-                }));
+    if (state.ll5s) {
+        state.ll5s.forEach(ll5 => {
+            if (ll5.ll6s) {
+                ll5.ll6s.forEach(ll6 => {
+                    if (ll6.employees && ll6.employees.length > 0 && typeof ll6.employees[0] === 'string') {
+                        ll6.employees = ll6.employees.map(emp => ({
+                            name: emp,
+                            rateLocation: Object.keys(state.rates)[0] || "US"
+                        }));
+                    }
+                });
             }
         });
-    });
+    }
 
     // Reset viewOffset to 0 (today)
     state.viewOffset = 0;
