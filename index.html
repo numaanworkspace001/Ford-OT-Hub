@@ -5,51 +5,123 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Ford OT Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-</head>
-<body class="flex flex-col h-screen overflow-hidden">
+    <style>
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #f1f5f9;
+            -webkit-tap-highlight-color: transparent;
+        }
 
-    <header class="bg-[#003478] text-white p-4 pt-6 shrink-0" id="header-nav">
-        <div class="flex justify-between items-center max-w-5xl mx-auto w-full">
-            <div>
-                <p class="text-[10px] font-black opacity-60 uppercase tracking-widest">Ford OT Portal</p>
-                <h1 class="text-xl font-extrabold" id="header-date-title">Loading...</h1>
+        /* Mobile Bottom Nav Shadow */
+        .bottom-nav {
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Card Stylings */
+        .app-card {
+            background: white;
+            border-radius: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Floating Action Button */
+        .fab {
+            box-shadow: 0 8px 24px rgba(0, 52, 120, 0.3);
+            transition: transform 0.2s;
+        }
+        .fab:active { transform: scale(0.9); }
+
+        /* Custom Scrollbar for Heatmap */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Modal Animation */
+        #entry-modal {
+            transition: transform 0.3s ease-out, opacity 0.3s;
+        }
+        .modal-hidden {
+            transform: translateY(100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .day-input-circle {
+            aspect-ratio: 1/1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            background: #f8fafc;
+        }
+
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="flex flex-col h-svh overflow-hidden">
+
+    <div x-data x-cloak class="bg-slate-800 text-white p-2 sticky top-0 z-[100] flex justify-between items-center">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            <span class="text-[10px] font-bold uppercase tracking-wider">Role:</span>
+            <span class="text-xs font-black" x-text="window.state?.currentUser?.role || 'Loading'"></span>
+        </div>
+        <div class="relative" x-data="{ roleOpen: false }">
+            <button @click="roleOpen = !roleOpen" class="bg-white/10 px-3 py-1 rounded text-[10px] font-bold">SWITCH</button>
+            <div x-show="roleOpen" @click.away="roleOpen = false" class="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-xl text-slate-800 overflow-hidden z-50">
+                <template x-for="role in ['GSR', 'LL6', 'LL5', 'Admin']">
+                    <button @click="window.state.currentUser.role = role; roleOpen = false; save(); refreshUI();" class="w-full text-left px-3 py-2 text-[10px] font-bold hover:bg-slate-50 border-b border-slate-100 last:border-0" x-text="role"></button>
+                </template>
             </div>
-            <div class="bg-white/10 p-2 rounded-xl text-right">
-                <p class="text-[10px] font-bold opacity-60 uppercase">Year Budget</p>
-                <p class="text-sm font-black" id="stat-annual-budget">$0</p>
+        </div>
+    </div>
+
+    <header class="bg-[#003478] text-white p-2 sm:p-3 shrink-0" id="header-nav">
+        <div class="flex items-center justify-between gap-2 text-xs sm:text-sm">
+            <!-- Title -->
+            <p class="text-[7px] sm:text-[9px] font-black opacity-60 uppercase tracking-widest whitespace-nowrap">Ford OT</p>
+            
+            <!-- Week Navigation -->
+            <div class="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-lg">
+                <span id="header-year-display" class="font-bold min-w-7">2026</span>
+                <button onclick="changeWeek(-1)" aria-label="Previous week" class="hover:bg-white/20 p-0.5 rounded font-bold text-xs">◀</button>
+                <div class="cursor-pointer text-center min-w-12" onclick="openDatePickerModal()" role="button" aria-label="Open date picker">
+                    <p class="text-xs sm:text-sm font-black leading-none" id="header-week-display">---</p>
+                    <p class="text-[7px] opacity-60 leading-tight" id="header-date-range">Loading...</p>
+                </div>
+                <button onclick="changeWeek(1)" aria-label="Next week" class="hover:bg-white/20 p-0.5 rounded font-bold text-xs">▶</button>
             </div>
         </div>
     </header>
 
-    <main class="flex-1 overflow-y-auto pb-32 p-4">
-        <div class="max-w-5xl mx-auto space-y-4">
+    <main class="flex-1 overflow-y-auto pb-32 p-2 sm:p-3">
+        <div class="w-full mx-auto space-y-2 sm:space-y-3">
             
-            <div class="flex items-center justify-between gap-2 bg-white p-3 rounded-2xl border border-slate-200">
-                <button onclick="changeWeek(-1)" class="p-3 hover:bg-slate-100 rounded-lg font-bold text-lg">◀</button>
-                <div class="text-center flex-1">
-                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider" id="display-week-label">WEEK 01</span>
-                    <p class="text-sm font-black text-[#003478]" id="display-range-label">Jan 1 - Jan 7</p>
-                </div>
-                <button onclick="changeWeek(1)" class="p-3 hover:bg-slate-100 rounded-lg font-bold text-lg">▶</button>
-                <div class="flex gap-1 items-center border-l border-slate-200 pl-3">
-                    <select id="jump-year" onchange="handleYearChange()" class="p-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#003478] cursor-pointer min-w-16">
-                    </select>
-                    <select id="jump-week" onchange="jumpToWeek()" class="p-2 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#003478] cursor-pointer min-w-20">
-                    </select>
-                </div>
-            </div>
-
-            <div id="view-worksheet" class="space-y-4">
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="app-card p-4">
-                        <p class="text-[10px] font-bold text-slate-400 uppercase">Target ($)</p>
-                        <p class="text-lg font-extrabold text-emerald-600" id="stat-week-target">$0</p>
+            <div id="view-worksheet" class="space-y-2">
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-2">
+                    <div class="app-card p-2">
+                        <p class="text-[6px] sm:text-[8px] font-bold text-slate-400 uppercase leading-tight">Annual Budget</p>
+                        <p class="text-xs sm:text-sm font-extrabold text-blue-600" id="stat-annual-budget">$0</p>
                     </div>
-                    <div class="app-card p-4">
-                        <p class="text-[10px] font-bold text-slate-400 uppercase">Spent ($)</p>
-                        <p class="text-lg font-extrabold text-slate-800" id="stat-week-actual">$0</p>
+                    <div class="app-card p-2">
+                        <p class="text-[6px] sm:text-[8px] font-bold text-slate-400 uppercase leading-tight">Remaining</p>
+                        <p class="text-xs sm:text-sm font-extrabold text-purple-600" id="stat-remaining">$0</p>
+                    </div>
+                    <div class="app-card p-2">
+                        <p class="text-[6px] sm:text-[8px] font-bold text-slate-400 uppercase leading-tight">Week Budget</p>
+                        <p class="text-xs sm:text-sm font-extrabold text-emerald-600" id="stat-week-target">$0</p>
+                    </div>
+                    <div class="app-card p-2">
+                        <p class="text-[6px] sm:text-[8px] font-bold text-slate-400 uppercase leading-tight">Week Allocated</p>
+                        <p class="text-xs sm:text-sm font-extrabold" id="stat-week-allocated" style="color: var(--budget-color, #ea580c);">$0</p>
+                    </div>
+                    <div class="app-card p-2">
+                        <p class="text-[6px] sm:text-[8px] font-bold text-slate-400 uppercase leading-tight">Week Actual</p>
+                        <p class="text-xs sm:text-sm font-extrabold text-slate-700" id="stat-week-actual">$0</p>
                     </div>
                 </div>
 
@@ -63,67 +135,171 @@
                 </div>
             </div>
 
-            <div id="view-settings" class="hidden space-y-4">
-                <div class="app-card p-6">
+            <div id="view-settings" class="hidden space-y-3 sm:space-y-4 pb-32 overflow-y-auto" style="max-height: calc(100vh - 140px)">
+                <div class="app-card p-4 sm:p-6">
                     <h3 class="font-black mb-4 text-lg">Budget Settings</h3>
                     <div class="space-y-4">
-                        <div class="flex gap-2">
-                            <input type="number" id="new-year-input" placeholder="New Year" class="flex-1 p-3 bg-slate-50 rounded-xl font-bold text-lg border-none focus:ring-2 focus:ring-[#003478]" min="2020" max="2050">
-                            <button onclick="addNewYear()" class="bg-[#003478] text-white px-4 rounded-xl font-black whitespace-nowrap">Add Year</button>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <input type="number" id="new-year-input" placeholder="New Year" class="flex-1 p-3 bg-slate-50 rounded-xl font-bold text-sm sm:text-lg border-none focus:ring-2 focus:ring-[#003478]" min="2020" max="2050">
+                            <button onclick="addNewYear()" class="bg-[#003478] text-white px-4 rounded-xl font-black text-sm whitespace-nowrap">Add Year</button>
                         </div>
                         <label class="block">
                             <span class="text-xs font-bold text-slate-500 uppercase">Select Year</span>
-                            <select id="settings-year-selector" onchange="updateBudgetForm()" class="w-full mt-2 p-3 bg-slate-50 rounded-xl font-bold text-lg border-none focus:ring-2 focus:ring-[#003478]">
+                            <select id="settings-year-selector" onchange="updateBudgetForm()" class="w-full mt-2 p-3 bg-slate-50 rounded-xl font-bold text-sm sm:text-lg border-none focus:ring-2 focus:ring-[#003478]">
                             </select>
                         </label>
                         <label class="block">
                             <span class="text-xs font-bold text-slate-500 uppercase">Annual Budget ($)</span>
                             <input type="number" id="settings-budget-input" onchange="saveBudgetForYear()" class="w-full mt-2 p-3 bg-slate-50 rounded-xl font-bold text-lg border-none focus:ring-2 focus:ring-[#003478]">
                         </label>
-                        <label class="block">
-                            <span class="text-xs font-bold text-slate-500 uppercase">1st Day of Budget Year</span>
-                            <input type="date" id="settings-week-start" onchange="saveBudgetForYear()" class="w-full mt-2 p-3 bg-slate-50 rounded-xl font-bold text-sm border-none focus:ring-2 focus:ring-[#003478]">
-                        </label>
                     </div>
                 </div>
 
-                <div class="app-card p-6">
+                <div class="app-card p-4 sm:p-6">
                     <h3 class="font-black mb-4 text-lg">OT Rates by Location</h3>
                     <div class="space-y-3 mb-4" id="rates-list"></div>
-                    <div class="flex gap-2">
-                        <input type="text" id="new-location-input" placeholder="Location (e.g., US, Mexico)" class="flex-1 p-3 bg-slate-50 rounded-xl border-none font-bold focus:ring-2 focus:ring-[#003478]">
-                        <input type="number" id="new-rate-input" placeholder="Rate ($)" class="flex-1 p-3 bg-slate-50 rounded-xl border-none font-bold focus:ring-2 focus:ring-[#003478]" min="0" step="0.01">
-                        <button onclick="addNewRate()" class="bg-[#003478] text-white px-4 rounded-xl font-black whitespace-nowrap">Add</button>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="text" id="new-location-input" placeholder="Location (e.g., US, Mexico)" class="flex-1 p-3 bg-slate-50 rounded-xl border-none font-bold text-sm focus:ring-2 focus:ring-[#003478]">
+                        <input type="number" id="new-rate-input" placeholder="Rate ($)" class="flex-1 sm:flex-none sm:w-24 p-3 bg-slate-50 rounded-xl border-none font-bold text-sm focus:ring-2 focus:ring-[#003478]" min="0" step="0.01">
+                        <button onclick="addNewRate()" class="bg-[#003478] text-white px-4 rounded-xl font-black text-sm whitespace-nowrap">Add</button>
                     </div>
                 </div>
 
-                <div class="app-card p-6">
-                    <h3 class="font-black mb-4 text-lg">Organization</h3>
-                    <div class="space-y-3 mb-4">
-                        <div class="flex gap-2">
-                            <input type="text" id="new-ll5" placeholder="New Manager Name" class="flex-1 p-3 bg-slate-50 rounded-xl border-none font-bold focus:ring-2 focus:ring-[#003478]">
-                            <button onclick="addLL5()" class="bg-[#003478] text-white px-4 rounded-xl font-black">Add</button>
-                        </div>
+                <div class="app-card p-4 sm:p-6">
+                    <h3 class="font-black mb-4 text-lg">Data Backup & Export</h3>
+                    <div class="space-y-3">
+                        <button onclick="exportToJSON()" class="w-full bg-blue-500 text-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-600 transition">📥 Export as JSON (Backup)</button>
+                        <button onclick="exportToCSV()" class="w-full bg-green-500 text-white px-4 py-3 rounded-xl font-black text-sm hover:bg-green-600 transition">📊 Export as CSV (Excel)</button>
+                        <button onclick="importFromJSON()" class="w-full bg-slate-500 text-white px-4 py-3 rounded-xl font-black text-sm hover:bg-slate-600 transition">📤 Import from JSON</button>
+                        <p class="text-xs text-slate-600 italic">Your data is saved locally in your browser. Use these tools to backup or transfer your data.</p>
                     </div>
-                    <div id="settings-hierarchy" class="space-y-3"></div>
+                </div>
+
+                <div class="app-card p-4 sm:p-6" x-data="orgManager()" x-init="init()" x-cloak>
+                    <header class="flex justify-between items-center mb-6 gap-2">
+                        <h3 class="font-black text-lg">Organization Structure</h3>
+                        <template x-if="window.state.currentUser?.role === 'LL6' || window.state.currentUser?.role === 'LL5'">
+                            <button @click="bulkApprove(window.state.currentUser?.id)" class="bg-emerald-600 text-white text-[10px] font-black px-4 py-2 rounded-lg shadow-sm active:scale-95 transition whitespace-nowrap">✅ APPROVE ALL UNDERS</button>
+                        </template>
+                        <button @click="addLL0()" class="bg-black text-white text-[10px] font-black px-4 py-2 rounded-xl active:scale-95 transition" aria-label="Add top level person">+ Add LL0</button>
+                    </header>
+
+                    <div class="space-y-2">
+                        <template x-for="(person, index) in people" :key="person.id">
+                            <div>
+                                <div :style="`margin-left: ${getIndent(person.level)}px`" 
+                                     class="app-card p-3 flex justify-between items-center mb-1 group transition-all"
+                                     :class="errorId === person.id ? 'border-red-500 bg-red-50' : ''">
+                                    
+                                    <div class="flex items-center gap-3 flex-1">
+                                        <span class="text-[9px] font-black w-7 h-7 flex items-center justify-center rounded shrink-0"
+                                              :class="person.level !== 'GSR' ? 'bg-[#003478] text-white' : 'bg-slate-100 text-slate-500'"
+                                              x-text="person.level"></span>
+                                        
+                                        <div class="flex-1">
+                                            <div x-data="{ isEditing: false, oldName: '' }" class="flex flex-col">
+                                                <template x-if="!isEditing">
+                                                    <p @click="isEditing = true; oldName = person.name; $nextTick(() => $refs.editInput.focus())" 
+                                                       class="text-sm font-bold cursor-pointer hover:text-blue-600 truncate" 
+                                                       x-text="person.name"></p>
+                                                </template>
+                                                <template x-if="isEditing">
+                                                    <input x-ref="editInput" type="text" x-model="person.name" 
+                                                           @blur="if(validateEdit(person, oldName)) { isEditing = false } else { person.name = oldName; isEditing = false; }" 
+                                                           @keyup.enter="$el.blur()"
+                                                           class="text-sm font-bold text-blue-600 bg-transparent border-none p-0 w-full focus:ring-0">
+                                                </template>
+
+                                                <template x-if="person.level === 'GSR'">
+                                                    <div class="flex flex-col">
+                                                        <p class="text-[10px] font-black text-blue-600" x-text="person.location"></p>
+                                                        <p class="text-[9px] font-bold text-emerald-600" 
+                                                           x-text="'$' + (state.rates[person.location] || person.rate || 0) + '/hr'">
+                                                        </p>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex gap-1">
+                                        <template x-if="(window.state.currentUser?.role === 'LL6' && person.level === 'GSR') || (window.state.currentUser?.role === 'LL5' && person.level === 'LL6')">
+                                            <button @click="toggleClarify(person.id)" 
+                                                    :class="window.state.flags && window.state.flags[person.id] ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-400'"
+                                                    class="w-8 h-8 flex items-center justify-center rounded-full font-black text-lg transition-all" 
+                                                    title="Mark for clarification">!
+                                            </button>
+                                        </template>
+                                        <template x-if="person.level !== 'GSR'">
+                                            <button @click="addingTo = person.id; tempName = ''; tempLocation = '';" class="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors" aria-label="Add subordinate">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 6v12M6 12h12"/></svg>
+                                            </button>
+                                        </template>
+                                        <button @click="removePerson(person.id)" class="w-8 h-8 flex items-center justify-center text-slate-200 hover:text-red-500" aria-label="Delete person">
+                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1-1v6a1 1 0 102 0V8a1 1 0 00-1-1z"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div x-show="addingTo === person.id" x-cloak 
+                                     :style="`margin-left: ${getIndent(person.level) + 12}px`"
+                                     class="p-4 bg-blue-50 rounded-2xl border border-blue-100 mt-1 mb-4 shadow-inner">
+                                    <div class="space-y-3">
+                                        <div class="flex justify-between items-center">
+                                            <p class="text-[9px] font-black text-blue-500 uppercase" x-text="'New ' + getNextLevel(person.level)"></p>
+                                            <template x-if="isDuplicate">
+                                                <p class="text-[9px] font-bold text-red-500 animate-pulse">Name already exists!</p>
+                                            </template>
+                                        </div>
+                                        
+                                        <input type="text" x-model="tempName" @input="checkDuplicate()" @keyup.enter="saveNew(person)" placeholder="Name..." 
+                                               class="w-full p-2.5 text-sm rounded-xl border-none shadow-sm focus:ring-2 focus:ring-blue-400"
+                                               :class="isDuplicate ? 'ring-2 ring-red-400' : ''">
+                                        
+                                        <template x-if="getNextLevel(person.level) === 'GSR'">
+                                            <div class="flex flex-col gap-2 bg-white p-2 rounded-xl border border-blue-100">
+                                                <span class="text-[9px] font-black text-slate-400 ml-2 uppercase">Assigned Location</span>
+                                                <select x-model="tempLocation" class="w-full p-2 text-sm font-bold border-none text-blue-600 focus:ring-0">
+                                                    <option value="">Select Location...</option>
+                                                    <template x-for="loc in Object.keys(state.rates)">
+                                                        <option :value="loc" x-text="loc"></option>
+                                                    </template>
+                                                </select>
+                                            </div>
+                                        </template>
+
+                                        <div class="flex gap-2">
+                                            <button @click="saveNew(person)" :disabled="isDuplicate || !tempName"
+                                                    class="flex-1 bg-blue-600 disabled:bg-slate-300 text-white py-2 rounded-xl text-xs font-black shadow-lg shadow-blue-200 transition">Save</button>
+                                            <button @click="addingTo = null; isDuplicate = false;" class="flex-1 bg-white text-slate-400 py-2 rounded-xl text-xs font-bold border border-slate-200">Cancel</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>
     </main>
 
     <nav class="bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center h-20 shrink-0 z-40">
-        <button onclick="switchView('worksheet')" class="flex flex-col items-center gap-1 text-[#003478]">
+        <button onclick="switchView('worksheet')" aria-label="Home - View weekly entries" class="flex flex-col items-center gap-1 text-[#003478]">
             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
             <span class="text-[10px] font-extrabold uppercase">Home</span>
         </button>
-        <div class="w-12"></div> <button onclick="switchView('settings')" class="flex flex-col items-center gap-1 text-slate-400">
+        <div class="w-12"></div> <button onclick="switchView('settings')" aria-label="Settings - Manage organization and preferences" class="flex flex-col items-center gap-1 text-slate-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
             <span class="text-[10px] font-extrabold uppercase">Settings</span>
         </button>
     </nav>
 
-    <button onclick="openModal()" class="fab fixed bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-[#003478] text-white rounded-full flex items-center justify-center z-50">
+    <button onclick="openModal()" aria-label="Add new OT entry" class="fab fixed bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-[#003478] text-white rounded-full flex items-center justify-center z-50">
         <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
+    </button>
+
+    <button onclick="openFeedbackModal()" aria-label="Submit feedback or bug report" class="fixed bottom-24 right-6 w-14 h-14 bg-amber-500 text-white rounded-full flex items-center justify-center z-50 shadow-lg hover:bg-amber-600 transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
     </button>
 
     <div id="entry-modal" class="modal-hidden fixed inset-0 bg-black/60 z-[60] flex flex-col justify-end">
@@ -177,11 +353,1767 @@
 
             <div class="border-t border-slate-200 p-6 flex gap-3">
                 <button onclick="if(confirmData.isConfirm) closeConfirm(); else closeEditModal();" class="flex-1 bg-slate-200 text-slate-700 py-3 rounded-xl font-black">Cancel</button>
-                <button onclick="if(confirmData.isConfirm) submitConfirm(); else submitEditModal();" class="flex-1 bg-[#003478] text-white py-3 rounded-xl font-black">Save</button>
+                <button id="modal-action-btn" onclick="if(confirmData.isConfirm) submitConfirm(); else submitEditModal();" class="flex-1 bg-[#003478] text-white py-3 rounded-xl font-black">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Picker Modal -->
+    <div id="date-picker-modal" class="modal-hidden fixed inset-0 bg-black/60 z-[60] flex flex-col justify-center items-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl">
+            <div class="flex justify-between items-center p-6 border-b border-slate-200">
+                <h2 class="text-lg font-black text-slate-800">Go to Week</h2>
+                <button onclick="closeDatePickerModal()" class="text-slate-400 text-2xl font-bold">×</button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Select Date</label>
+                    <input type="date" id="date-picker-input" class="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 font-bold focus:ring-2 focus:ring-[#003478]">
+                </div>
+                <div id="week-preview" class="p-3 bg-slate-50 rounded-xl text-center">
+                    <p class="text-xs font-bold text-slate-400 uppercase mb-1">Week</p>
+                    <p class="text-lg font-black text-[#003478]" id="preview-week">Loading...</p>
+                    <p class="text-xs text-slate-500 mt-1" id="preview-range">Jan 1 - Jan 7</p>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-200 p-6 flex gap-3">
+                <button onclick="closeDatePickerModal()" class="flex-1 bg-slate-200 text-slate-700 py-3 rounded-xl font-black">Cancel</button>
+                <button onclick="goToDatePickerWeek()" class="flex-1 bg-[#003478] text-white py-3 rounded-xl font-black">Go to Week</button>
             </div>
         </div>
     </div>
 
     <script src="script.js"></script>
+    <script>
+        // Current logged-in user (role-based)
+        let currentUser = {
+            id: 1,
+            name: "Admin",
+            level: "Manager", // GSR, LL6, LL5, Gatekeeper (kept for backward compatibility)
+            ll5: null,
+            ll6: null
+        };
+
+        let state = {
+            currentUser: { id: 1, name: "Admin", role: "Admin" },
+            budgetsByYear: {},
+            rates: {},
+            viewOffset: 0,
+            weekStatus: {},
+            weekApprovals: {},
+            hierarchy: [],
+            entries: [],
+            holidays: []
+        };
+
+        // Make state globally accessible to Alpine.js immediately
+        window.state = state;
+
+        const DAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+        // Check if current time is past Wednesday 3 PM (emergency OT deadline)
+        function isEmergencyOTDeadline() {
+            const now = new Date();
+            // Wednesday = 3, 3 PM = 15:00
+            const wednesdayDeadline = new Date();
+            wednesdayDeadline.setDate(wednesdayDeadline.getDate() - (wednesdayDeadline.getDay() - 3));
+            wednesdayDeadline.setHours(15, 0, 0, 0);
+            return now >= wednesdayDeadline;
+        }
+
+        // Get recent reasons for current user (last 5 unique reasons)
+        function getRecentReasons() {
+            const userEntries = state.entries.filter(e => e.emp === currentUser.name);
+            const reasons = [...new Set(userEntries.map(e => e.reason).filter(r => r && r !== "N/A"))];
+            return reasons.slice(-5).reverse();
+        }
+
+        // Get manager for an employee (traverse hierarchy upward)
+        function getManager(empId) {
+            function findAndTraverse(node, targetId, parent = null) {
+                if (node.id === targetId) return parent;
+                if (node.subs) {
+                    for (let sub of node.subs) {
+                        const result = findAndTraverse(sub, targetId, node);
+                        if (result) return result;
+                    }
+                }
+                return null;
+            }
+            if (state.hierarchy) {
+                for (let root of state.hierarchy) {
+                    const manager = findAndTraverse(root, empId);
+                    if (manager) return manager;
+                }
+            }
+            return null;
+        }
+
+        // Check if week is frozen (gatekeeper approved)
+        function isWeekFrozen(weekKey) {
+            if (!state.weekStatus) return false;
+            return state.weekStatus[weekKey] && state.weekStatus[weekKey].frozen;
+        }
+
+        // Helper functions to work with hierarchy
+        function getAllPeopleByLevel(level) {
+            const results = [];
+            function traverse(node) {
+                if (node.level === level) results.push(node);
+                if (node.subs) node.subs.forEach(traverse);
+            }
+            if (state.hierarchy) state.hierarchy.forEach(traverse);
+            return results;
+        }
+
+        function getSubordinates(personName) {
+            // Find a person and return their direct reports
+            function findPerson(node, targetName) {
+                if (node.name === targetName) return node;
+                if (node.subs) {
+                    for (let sub of node.subs) {
+                        const found = findPerson(sub, targetName);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+            
+            let person = null;
+            if (state.hierarchy) {
+                for (let node of state.hierarchy) {
+                    person = findPerson(node, personName);
+                    if (person) break;
+                }
+            }
+            return (person && person.subs) ? person.subs : [];
+        }
+
+        function getTopManagers() {
+            return state.hierarchy || [];
+        }
+        
+        function getAllTopManagers() {
+            // Return all LL5 level managers for the dropdown
+            return getAllPeopleByLevel('LL5');
+        }
+
+        function init() {
+            // 1. Try to load existing data
+            const savedData = localStorage.getItem('ford_ot_v3_mobile');
+            
+            if (savedData) {
+                try {
+                    state = JSON.parse(savedData);
+                    // Ensure weekStatus exists in loaded data (backward compatibility)
+                    if (!state.weekStatus) state.weekStatus = {};
+                    // Ensure currentUser exists
+                    if (!state.currentUser) state.currentUser = { id: 1, name: "Admin", role: "Admin" };
+                    // Re-expose to window after reassignment
+                    window.state = state;
+                } catch (e) {
+                    console.error('Error parsing saved state:', e);
+                }
+            } else {
+                // 2. If no data exists, set up the clean slate
+                state = {
+                    currentUser: { id: 1, name: "Admin", role: "Admin" },
+                    budgetsByYear: {},
+                    rates: {},
+                    viewOffset: 0,
+                    weekStatus: {},
+                    weekApprovals: {},
+                    hierarchy: [],
+                    entries: [],
+                    holidays: []
+                };
+                // Re-expose to window after reassignment
+                window.state = state;
+            }
+
+            // 3. Ensure Hierarchy IDs exist for Alpine.js
+            const addIds = (items) => {
+                items.forEach(item => {
+                    if (!item.id) item.id = Date.now() + Math.random();
+                    if (item.subs) addIds(item.subs);
+                });
+            };
+            if (state.hierarchy) addIds(state.hierarchy);
+
+            // Initialize flags for clarification markers
+            state.flags = state.flags || {};
+
+            // 4. Update UI
+            renderModalDays();
+            populateDropdowns();
+            populateJumpSelectors();
+            renderRatesList();
+            refreshUI(); // This will now correctly overwrite the placeholder
+            switchView('worksheet');
+            
+            // Save the state
+            save();
+        }
+
+
+        function switchToYear() {
+            const selectedYear = String(document.getElementById('jump-year').value);
+            // Jump to Week 1 of selected year (Jan 1)
+            const week1Start = new Date(parseInt(selectedYear), 0, 1);
+            const today = new Date();
+            const currentSunday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            currentSunday.setDate(currentSunday.getDate() - currentSunday.getDay());
+            state.viewOffset = Math.round((week1Start - currentSunday) / (86400000 * 7));
+            refreshUI();
+        }
+
+        function renderModalDays() {
+            const container = document.getElementById('modal-days-container');
+            container.innerHTML = DAYS.map((d, i) => `
+                <div class="day-input-circle">
+                    <span class="text-[10px] font-black text-slate-400 mb-1">${d}</span>
+                    <input type="number" id="hrs-${i}" value="0" class="w-full bg-transparent text-center font-black text-lg focus:outline-none">
+                </div>
+            `).join('');
+        }
+
+        function refreshUI() {
+            const week = getWeekData(state.viewOffset);
+            
+            // Update header with year, week number, and date range
+            document.getElementById('header-year-display').innerText = `${week.year}`;
+            document.getElementById('header-week-display').innerText = `W${String(week.weekNum).padStart(2, '0')}`;
+            document.getElementById('header-date-range').innerText = week.shortRange;
+
+            const annualBudget = state.budgetsByYear[week.year] || 0;
+            
+            // SMART LOGIC: Only sum up money spent in PREVIOUS weeks (not current week)
+            const spentBeforeThisWeek = state.entries.filter(e => {
+                return e.weekKey.startsWith(week.year) && e.weekKey < week.key;
+            }).reduce((s, e) => s + e.cost, 0);
+            
+            const spentThisWeek = state.entries.filter(e => e.weekKey === week.key).reduce((s, e) => s + e.cost, 0);
+            
+            // Calculate smoothed weekly budget: (remaining budget from PREVIOUS weeks only) / (remaining weeks including current)
+            const remainingBudget = Math.max(0, annualBudget - spentBeforeThisWeek);
+            const remainingWeeks = Math.max(1, week.weeksInYear - week.weekNum + 1); // Weeks remaining INCLUDING current week
+            const smoothedWeeklyBudget = remainingBudget / remainingWeeks;
+            
+            // Calculate total spent year-to-date (including this week)
+            const totalSpentYTD = spentBeforeThisWeek + spentThisWeek;
+            const remainingYTD = Math.max(0, annualBudget - totalSpentYTD);
+            
+            // Check if week is in the past: week ends before today
+            const weekEndDate = new Date(week.endDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const isWeekPast = weekEndDate < today;
+            
+            // Update all stat cards
+            document.getElementById('stat-annual-budget').innerText = `$${annualBudget.toLocaleString(undefined, {maximumFractionDigits:0})}`;
+            document.getElementById('stat-remaining').innerText = `$${remainingYTD.toLocaleString(undefined, {maximumFractionDigits:0})}`;
+            document.getElementById('stat-week-target').innerText = `$${smoothedWeeklyBudget.toLocaleString(undefined, {maximumFractionDigits:2})}`;
+            document.getElementById('stat-week-allocated').innerText = `$${spentThisWeek.toLocaleString(undefined, {maximumFractionDigits:0})}`;
+            
+            // Show actual for this week regardless of whether it's past or current
+            const actualThisWeek = state.entries.filter(e => e.weekKey === week.key).reduce((s, e) => s + e.cost, 0);
+            document.getElementById('stat-week-actual').innerText = `$${actualThisWeek.toLocaleString(undefined, {maximumFractionDigits:0})}`;
+
+            populateJumpSelectors();
+            renderHeatmap(week.key);
+            updateBudgetColor(); // Update budget warning colors
+
+            // Role-based UI visibility
+            const role = state.currentUser?.role || 'GSR';
+            
+            // Hide/Show FAB (Add Entry button) - only GSR and Admin
+            const fab = document.querySelector('.fab');
+            if (fab) {
+                fab.style.display = (role === 'GSR' || role === 'Admin') ? 'flex' : 'none';
+            }
+            
+            // Hide/Show Settings tab - only Admin using 'hidden' class
+            const settingsNav = document.querySelectorAll('nav button')[1];
+            if (settingsNav) {
+                if (role !== 'Admin') {
+                    settingsNav.classList.add('hidden');
+                } else {
+                    settingsNav.classList.remove('hidden');
+                }
+            }
+            
+            // Update header title to show current role
+            const headerTitle = document.querySelector('[id="header-nav"] p');
+            if (headerTitle) {
+                headerTitle.innerText = role + ' VIEW';
+            }
+        }
+
+        // Update entry status for approval pipeline
+        function updateStatus(entryId, newStatus) {
+            const entry = state.entries.find(e => e.id === entryId);
+            if (entry) {
+                entry.status = newStatus;
+                save();
+                refreshUI();
+            }
+        }
+
+        // Status update shortcuts for buttons
+        const submitToLL6 = (id) => updateStatus(id, 'Pending_LL6');
+        const approveToLL5 = (id) => updateStatus(id, 'Pending_LL5');
+        const finalApprove = (id) => updateStatus(id, 'Approved');
+
+        // Render individual entry row
+        function renderEntryRow(entry) {
+            const isEditable = entry.status === 'Draft' || state.currentUser?.role === 'Admin';
+            const role = state.currentUser?.role || 'GSR';
+            let actionBtn = '';
+            
+            if (role === 'GSR' && entry.status === 'Draft') {
+                actionBtn = `<button onclick="submitToLL6(${entry.id})" class="bg-blue-600 text-white px-2 py-1 rounded text-[8px] font-bold">Submit</button>`;
+            } else if (role === 'LL6' && entry.status === 'Pending_LL6') {
+                actionBtn = `<button onclick="approveToLL5(${entry.id})" class="bg-emerald-600 text-white px-2 py-1 rounded text-[8px] font-bold">Approve</button>`;
+            } else if (role === 'LL5' && entry.status === 'Pending_LL5') {
+                actionBtn = `<button onclick="finalApprove(${entry.id})" class="bg-purple-600 text-white px-2 py-1 rounded text-[8px] font-bold">Final OK</button>`;
+            }
+            
+            return `
+                <div class="bg-slate-50 rounded p-2 text-xs">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[9px] font-bold text-slate-500">${entry.prog} • ${entry.reason || 'N/A'}</span>
+                        <span class="text-[9px] font-bold text-slate-400">Status: ${entry.status || 'Draft'}</span>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1 mt-1">
+                        ${entry.hrs.map(h => `<span class="text-center text-slate-600 font-bold text-[9px]">${h}</span>`).join('')}
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <p class="text-slate-700 font-bold text-[9px]">$${entry.cost.toLocaleString()}</p>
+                        ${actionBtn}
+                    </div>
+                </div>
+            `;
+        }
+
+        function getWeekData(offset) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // 1. Calculate the target date based on the offset from today
+            let targetDate = new Date(today);
+            targetDate.setDate(today.getDate() + (offset * 7));
+
+            // 2. Find the Sunday of that week
+            let sun = new Date(targetDate);
+            sun.setDate(targetDate.getDate() - targetDate.getDay());
+
+            // 3. Find the Saturday of that week
+            let sat = new Date(sun);
+            sat.setDate(sun.getDate() + 6);
+
+            // 4. Determine the "Budget Year"
+            // We use the Thursday of the week to determine which year this week "belongs" to
+            let thu = new Date(sun);
+            thu.setDate(sun.getDate() + 4);
+            let year = thu.getFullYear();
+
+            // 5. Calculate Week Number
+            // Find Jan 1st of the determined year
+            let jan1 = new Date(year, 0, 1);
+            // Find the Sunday of the week that contains Jan 1st
+            let firstSundayOfYear = new Date(jan1);
+            firstSundayOfYear.setDate(jan1.getDate() - jan1.getDay());
+
+            // Calculate weeks between the first Sunday and current Sunday
+            const millisDiff = sun.getTime() - firstSundayOfYear.getTime();
+            const daysDiff = Math.floor(millisDiff / (24 * 60 * 60 * 1000));
+            let weekNum = Math.floor(daysDiff / 7) + 1;
+
+            // Handle Year Wrapping (if weekNum is 0, it belongs to previous year's last week)
+            if (weekNum <= 0) {
+                let prevYear = year - 1;
+                let prevJan1 = new Date(prevYear, 0, 1);
+                let prevFirstSun = new Date(prevJan1);
+                prevFirstSun.setDate(prevJan1.getDate() - prevJan1.getDay());
+                weekNum = Math.floor((sun.getTime() - prevFirstSun.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+                year = prevYear;
+            }
+
+            return { 
+                sun, 
+                sat, 
+                weekNum, 
+                year, 
+                key: `${year}-W${String(weekNum).padStart(2, '0')}`,
+                shortRange: `${sun.getMonth() + 1}/${sun.getDate()} - ${sat.getMonth() + 1}/${sat.getDate()}`,
+                endDate: sat,
+                weeksInYear: 52
+            };
+        }
+
+        function renderHeatmap(weekKey) {
+            const container = document.getElementById('heatmap-container');
+            let html = "";
+            
+            // Get week data for date calculations
+            const weekData = getWeekData(state.viewOffset);
+            const weekStartDate = weekData.sun;
+            
+            // Role-based filtering
+            const role = state.currentUser?.role || 'GSR';
+            let filteredEntries = state.entries.filter(e => e.weekKey === weekKey);
+            
+            if (role === 'GSR') {
+                // GSR only sees their own entries
+                filteredEntries = filteredEntries.filter(e => e.emp === currentUser.name || e.emp === state.currentUser?.name);
+            } else if (role === 'LL6') {
+                // LL6 only sees entries pending their approval
+                filteredEntries = filteredEntries.filter(e => e.status === 'Pending_LL6' || e.status === 'Draft');
+            } else if (role === 'LL5') {
+                // LL5 only sees entries pending their approval
+                filteredEntries = filteredEntries.filter(e => e.status === 'Pending_LL5');
+            }
+            
+            // Get all top-level managers
+            const topManagers = getAllTopManagers();
+            
+            topManagers.forEach((ll5) => {
+                const ll5Key = `${ll5.level}_${ll5.name}_${weekKey}`;
+                const ll5IsApproved = state.weekApprovals[ll5Key] || false;
+                
+                // Show LL5 header
+                html += `
+                    <div class="bg-slate-100 border-b-2 border-slate-300 p-4 mb-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <p class="text-sm font-black text-slate-900">${ll5.name}</p>
+                                <p class="text-xs font-bold text-slate-500">${ll5.level} (Manager)</p>
+                            </div>
+                            <button onclick="approveLL5AndAllLL6s('${ll5Key}', '${weekKey}', '${ll5.name}')" class="px-3 py-2 rounded-lg font-bold text-white text-xs transition whitespace-nowrap ${ll5IsApproved ? 'bg-green-500 hover:bg-green-600' : 'bg-slate-400 hover:bg-slate-500'}">
+                                ${ll5IsApproved ? '✓ Approved' : 'Approve All'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // Recursively render subordinates
+                function renderSubordinates(manager) {
+                    if (!manager.subs) return;
+                    
+                    manager.subs.forEach((sub) => {
+                        // Check if this subordinate has any entries
+                        const entries = state.entries.filter(e => {
+                            return e.ll6 === sub.name && e.weekKey === weekKey;
+                        });
+                        
+                        if (sub.level === "GSR" || entries.length === 0) {
+                            return; // Skip GSR employees and empty supervisors
+                        }
+                        
+                        const subKey = `${sub.level}_${sub.name}_${weekKey}`;
+                        const subIsApproved = state.weekApprovals[subKey] || false;
+                        
+                        // Calculate daily totals
+                        const dayTotals = [0,0,0,0,0,0,0];
+                        entries.forEach(e => {
+                            e.hrs.forEach((h, i) => dayTotals[i] += h);
+                        });
+                        
+                        const totalCost = entries.reduce((s, e) => s + e.cost, 0);
+                        const totalHours = dayTotals.reduce((s, h) => s + h, 0);
+                        
+                        // LL6 Card - Collapsible
+                        const ll6SafeId = sub.name.replace(/[^a-z0-9]/gi, '');
+                        html += `
+                            <div class="bg-white border border-slate-200 rounded-lg p-4 mb-4 shadow-sm">
+                                <div class="flex items-center justify-between gap-2">
+                                    <button onclick="document.getElementById('ll6-details-${ll6SafeId}').classList.toggle('hidden'); document.getElementById('ll6-arrow-${ll6SafeId}').classList.toggle('rotate-180')" class="flex-1 flex items-center justify-between cursor-pointer hover:opacity-75 transition">
+                                        <div class="text-left">
+                                            <p class="text-sm font-black text-slate-900">${sub.name}</p>
+                                            <p class="text-xs font-bold text-slate-500">LL6</p>
+                                        </div>
+                                        <span id="ll6-arrow-${ll6SafeId}" class="text-lg">▼</span>
+                                    </button>
+                                    <button onclick="toggleApproval('${subKey}', '${weekKey}')" class="px-3 py-2 rounded-lg font-bold text-white text-xs transition whitespace-nowrap ${subIsApproved ? 'bg-green-500 hover:bg-green-600' : 'bg-slate-400 hover:bg-slate-500'}">
+                                        ${subIsApproved ? '✓ OK' : 'Approve'}
+                                    </button>
+                                </div>
+                                
+                                <!-- Expandable details -->
+                                <div id="ll6-details-${ll6SafeId}" class="mt-3 pt-3 border-t border-slate-100">
+                                    <!-- Daily hours boxes -->
+                                    <div class="grid grid-cols-7 gap-1 mb-3">
+                                        ${DAYS.map((day, idx) => {
+                                            const dayDate = new Date(weekStartDate);
+                                            dayDate.setDate(weekStartDate.getDate() + idx);
+                                            const dateLabel = dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                            return `
+                                                <div class="text-center">
+                                                    <p class="text-[10px] font-bold text-slate-400 mb-1">${day}</p>
+                                                    <p class="text-[7px] font-bold text-slate-300 leading-none mb-1">${dateLabel}</p>
+                                                    <div class="bg-emerald-50 border border-emerald-200 rounded p-2">
+                                                        <p class="text-xs font-black text-emerald-700">${dayTotals[idx] || '-'}</p>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                    
+                                    <!-- Summary -->
+                                    <div class="grid grid-cols-2 gap-2 text-center text-xs border-b border-slate-100 pb-3">
+                                        <div>
+                                            <p class="font-bold text-slate-500">Total Hours</p>
+                                            <p class="font-black text-slate-800">${totalHours}</p>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold text-slate-500">Total Cost</p>
+                                            <p class="font-black text-[#003478]">$${totalCost.toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Employees list - grouped by employee -->
+                                    <div class="mt-3">
+                                        ${(() => {
+                                            // Group entries by employee
+                                            const groupedByEmp = entries.reduce((acc, e) => {
+                                                if (!acc[e.emp]) {
+                                                    acc[e.emp] = { details: e, entries: [] };
+                                                }
+                                                acc[e.emp].entries.push(e);
+                                                return acc;
+                                            }, {});
+                                            
+                                            // Render each employee group
+                                            return Object.values(groupedByEmp).map(group => `
+                                                <div class="bg-white border border-slate-200 rounded-lg p-3 mb-3">
+                                                    <div class="border-b border-slate-100 pb-2 mb-2">
+                                                        <p class="text-sm font-black text-slate-900">${group.details.emp}</p>
+                                                        <p class="text-[9px] font-bold text-slate-500">${group.details.location || group.details.loc || 'N/A'} • Rate: $${group.details.rate}/hr</p>
+                                                    </div>
+                                                    <div class="space-y-2">
+                                                        ${group.entries.map(e => renderEntryRow(e)).join('')}
+                                                    </div>
+                                                </div>
+                                            `).join('');
+                                        })()}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Recursively render next level
+                        renderSubordinates(sub);
+                    });
+                }
+                
+                renderSubordinates(ll5);
+            });
+
+            container.innerHTML = html || `<div class="p-10 text-center text-slate-400 font-bold text-sm">No data for this week.</div>`;
+        }
+
+        function switchView(view) {
+            document.getElementById('view-worksheet').classList.toggle('hidden', view !== 'worksheet');
+            document.getElementById('view-settings').classList.toggle('hidden', view !== 'settings');
+            document.getElementById('header-nav').classList.toggle('hidden', view !== 'worksheet');
+            
+            // Icon color toggle
+            const navs = document.querySelectorAll('nav button');
+            navs[0].className = `flex flex-col items-center gap-1 ${view === 'worksheet' ? 'text-[#003478]' : 'text-slate-400'}`;
+            navs[1].className = `flex flex-col items-center gap-1 ${view === 'settings' ? 'text-[#003478]' : 'text-slate-400'}`;
+            
+            if (view === 'settings') renderSettings();
+        }
+
+        function openModal() { document.getElementById('entry-modal').classList.remove('modal-hidden'); }
+        function closeModal() { 
+            document.getElementById('entry-modal').classList.add('modal-hidden');
+            // Reset button to default state
+            const submitBtn = document.querySelector('[onclick="addEntry()"]');
+            if (submitBtn) {
+                submitBtn.textContent = 'Submit Entry';
+                submitBtn.onclick = addEntry;
+            }
+            // Hide delete button
+            const deleteBtn = document.getElementById('entry-delete-btn');
+            if (deleteBtn) {
+                deleteBtn.style.display = 'none';
+            }
+        }
+
+        // Edit Modal Functions
+        let editModalData = {};
+        
+        function openEditModal(title, fields, onSubmit) {
+            document.getElementById('edit-modal-title').innerText = title;
+            const contentDiv = document.getElementById('edit-modal-content');
+            contentDiv.innerHTML = fields.map(field => `
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-2">${field.label}</label>
+                    <input type="text" id="edit-field-${field.id}" value="${field.value}" placeholder="${field.placeholder || ''}" class="w-full p-3 bg-slate-100 rounded-xl font-bold border-none focus:ring-2 focus:ring-[#003478]">
+                </div>
+            `).join('');
+            editModalData.onSubmit = onSubmit;
+            document.getElementById('edit-modal').classList.remove('modal-hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('modal-hidden');
+            editModalData = {};
+        }
+
+        function submitEditModal() {
+            if (editModalData.onSubmit) {
+                editModalData.onSubmit();
+            }
+            closeEditModal();
+        }
+
+        function openFeedbackModal() {
+            const contentDiv = document.getElementById('edit-modal-content');
+            contentDiv.innerHTML = `
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Feedback / Bug Report</label>
+                    <textarea id="feedback-text" placeholder="Describe the issue or suggestion..." class="w-full p-3 bg-slate-100 rounded-xl font-bold border-none focus:ring-2 focus:ring-[#003478]" rows="5"></textarea>
+                </div>
+            `;
+            document.getElementById('edit-modal-title').innerText = 'Send Feedback';
+            
+            const actionBtn = document.getElementById('modal-action-btn');
+            actionBtn.textContent = 'Submit';
+            actionBtn.className = 'flex-1 bg-amber-500 text-white py-3 rounded-xl font-black';
+            actionBtn.onclick = () => {
+                const feedback = document.getElementById('feedback-text').value.trim();
+                if (feedback) {
+                    console.log('User Feedback:', feedback);
+                    showAlert('Thank you for your feedback!');
+                    closeEditModal();
+                } else {
+                    showAlert('Please enter your feedback');
+                }
+            };
+            
+            document.getElementById('edit-modal').classList.remove('modal-hidden');
+        }
+
+        // Date Picker Modal Functions
+        function openDatePickerModal() {
+            const today = new Date();
+            const dateStr = today.toISOString().split('T')[0];
+            document.getElementById('date-picker-input').value = dateStr;
+            updateWeekPreview();
+            document.getElementById('date-picker-modal').classList.remove('modal-hidden');
+        }
+
+        function closeDatePickerModal() {
+            document.getElementById('date-picker-modal').classList.add('modal-hidden');
+        }
+
+        function updateWeekPreview() {
+            const dateInput = document.getElementById('date-picker-input').value;
+            if (!dateInput) return;
+
+            const [year, month, day] = dateInput.split('-').map(Number);
+            const selectedDate = new Date(year, month - 1, day);
+            
+            // Use ISO 8601 week calculation
+            const week = getWeekData(0);
+            const weekData = getWeekData(Math.round((selectedDate - new Date(year, 0, 1)) / (86400000 * 7)));
+            const weekNum = weekData.weekNum;
+            const weekStartDate = weekData.sun;
+            const weekEndDate = weekData.sat;
+            
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const weekDisplay = `W${String(weekNum).padStart(2, '0')} (${year})`;
+            const rangeDisplay = `${monthNames[weekStartDate.getMonth()]} ${weekStartDate.getDate()} - ${monthNames[weekEndDate.getMonth()]} ${weekEndDate.getDate()}`;
+            
+            document.getElementById('preview-week').innerText = weekDisplay;
+            document.getElementById('preview-range').innerText = rangeDisplay;
+        }
+
+        function goToDatePickerWeek() {
+            const dateInput = document.getElementById('date-picker-input').value;
+            if (!dateInput) return;
+
+            const [year, month, day] = dateInput.split('-').map(Number);
+            const selectedDate = new Date(year, month - 1, day);
+            
+            // Use ISO 8601 week calculation
+            const weekData = getWeekData(Math.round((selectedDate - new Date()) / (86400000 * 7)));
+            const targetSunday = weekData.sun;
+            
+            const today = new Date();
+            const currentSunday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            currentSunday.setDate(currentSunday.getDate() - currentSunday.getDay());
+            
+            state.viewOffset = Math.round((targetSunday - currentSunday) / (86400000 * 7));
+            closeDatePickerModal();
+            refreshUI();
+        }
+
+        // Confirmation Modal
+        let confirmData = {};
+
+        function showConfirm(message, onConfirm) {
+            const contentDiv = document.getElementById('edit-modal-content');
+            contentDiv.innerHTML = `<p class="text-slate-700 font-bold text-center py-4">${message}</p>`;
+            document.getElementById('edit-modal-title').innerText = 'Confirm';
+            
+            // Update action button to show "Delete"
+            const actionBtn = document.getElementById('modal-action-btn');
+            actionBtn.textContent = 'Delete';
+            actionBtn.className = 'flex-1 bg-red-500 text-white py-3 rounded-xl font-black';
+            
+            confirmData.onConfirm = onConfirm;
+            confirmData.isConfirm = true;
+            
+            document.getElementById('edit-modal').classList.remove('modal-hidden');
+        }
+
+        function closeConfirm() {
+            confirmData = {};
+            const actionBtn = document.getElementById('modal-action-btn');
+            actionBtn.textContent = 'Save';
+            actionBtn.className = 'flex-1 bg-[#003478] text-white py-3 rounded-xl font-black';
+            document.getElementById('edit-modal').classList.add('modal-hidden');
+        }
+
+        function submitConfirm() {
+            if (confirmData.isConfirm && confirmData.onConfirm) {
+                confirmData.onConfirm();
+            }
+            closeConfirm();
+        }
+
+        function showAlert(message) {
+            const contentDiv = document.getElementById('edit-modal-content');
+            contentDiv.innerHTML = `<p class="text-slate-700 font-bold text-center py-4">${message}</p>`;
+            document.getElementById('edit-modal-title').innerText = 'Alert';
+            
+            const buttons = document.querySelectorAll('#edit-modal .border-t button');
+            if (buttons.length >= 1) {
+                buttons[0].textContent = 'OK';
+                buttons[0].className = 'flex-1 bg-slate-200 text-slate-700 py-3 rounded-xl font-black';
+                buttons[0].onclick = () => closeEditModal();
+            }
+            if (buttons.length >= 2) {
+                buttons[1].style.display = 'none';
+            }
+            
+            confirmData.isConfirm = false;
+            document.getElementById('edit-modal').classList.remove('modal-hidden');
+        }
+
+        function populateDropdowns() {
+            const l5 = document.getElementById('sel-ll5');
+            const topManagers = getAllTopManagers();
+            l5.innerHTML = topManagers.map(x => `<option value="${x.name}">${x.name}</option>`).join('');
+            updateLL6Dropdown();
+        }
+
+        function updateLL6Dropdown() {
+            const ll5Name = document.getElementById('sel-ll5').value;
+            const subs = getSubordinates(ll5Name);
+            document.getElementById('sel-ll6').innerHTML = subs.map(x => `<option value="${x.name}">${x.name}</option>`).join('');
+            updateEmployeeDropdown();
+        }
+
+        function updateEmployeeDropdown() {
+            const ll5Name = document.getElementById('sel-ll5').value;
+            const ll6Name = document.getElementById('sel-ll6').value;
+            const ll6Subs = getSubordinates(ll6Name);
+            if (!ll6Subs || ll6Subs.length === 0) {
+                document.getElementById('sel-emp').innerHTML = '';
+                return;
+            }
+            document.getElementById('sel-emp').innerHTML = ll6Subs.map(emp => {
+                const empName = emp.name;
+                const location = emp.location || emp.rateLocation || Object.keys(state.rates)[0] || 'N/A';
+                const rate = state.rates[location] || 0;
+                return `<option value="${empName}">${empName} (${location}: $${rate}/hr)</option>`;
+            }).join('');
+            
+            // Auto-fill location when employee is selected
+            document.getElementById('sel-emp').onchange = (e) => {
+                const empName = e.target.value;
+                const emp = ll6Subs.find(x => x.name === empName);
+                if (emp && emp.location) {
+                    document.getElementById('in-loc').value = emp.location;
+                }
+            };
+        }
+
+        function addEntry() {
+            const week = getWeekData(state.viewOffset);
+            
+            // Check if week is frozen
+            if (isWeekFrozen(week.key)) {
+                showAlert("This week is frozen and cannot be edited.");
+                return;
+            }
+            
+            const hrs = [];
+            let total = 0;
+            for(let i=0; i<7; i++) {
+                const val = parseFloat(document.getElementById(`hrs-${i}`).value || 0);
+                if (val > 24) {
+                    showAlert('Daily hours cannot exceed 24');
+                    return;
+                }
+                hrs.push(val); 
+                total += val;
+            }
+            
+            if (total === 0) {
+                showAlert("Enter at least some hours");
+                return;
+            }
+            
+            const prog = document.getElementById('in-prog').value.trim();
+            if (!prog) {
+                showAlert("Program name is required");
+                return;
+            }
+            
+            const loc = document.getElementById('in-loc').value.trim();
+            if (!loc) {
+                showAlert("Location is required");
+                return;
+            }
+
+            let ll5, ll6, emp;
+            if (currentUser.level === 'GSR') {
+                // GSR can only enter their own data
+                ll5 = currentUser.ll5;
+                ll6 = currentUser.ll6;
+                emp = currentUser.name;
+            } else {
+                // Managers can select any employee
+                ll5 = document.getElementById('sel-ll5').value;
+                ll6 = document.getElementById('sel-ll6').value;
+                emp = document.getElementById('sel-emp').value;
+            }
+            
+            // Get employee object to extract location
+            const ll6Subs = getSubordinates(ll6);
+            const empObj = ll6Subs.find(e => e.name === emp);
+            const empLocation = empObj?.location || 'N/A';
+            if (!emp) {
+                showAlert("Please set up your Organization Structure in Settings first and select an employee.");
+                return;
+            }
+            
+            const rate = getRateForEmployee(ll5, ll6, emp);
+            
+            // Check for emergency OT
+            const isEmergency = isEmergencyOTDeadline();
+            let reason = document.getElementById('in-reason').value.trim();
+            
+            if (isEmergency && !reason) {
+                showAlert("Emergency OT requires a justification");
+                return;
+            }
+
+            state.entries.push({
+                id: Date.now() + Math.random(),
+                weekKey: week.key,
+                ll5: ll5,
+                ll6: ll6,
+                emp: emp,
+                location: empLocation,
+                prog: prog,
+                loc: loc,
+                reason: reason || "N/A",
+                rate: rate,
+                cost: total * rate,
+                hrs,
+                type: isEmergency ? "Emergency" : "Standard",
+                status: "Draft",
+                submittedBy: state.currentUser.id
+            });
+
+            save(); refreshUI(); closeModal();
+            for(let i=0; i<7; i++) document.getElementById(`hrs-${i}`).value = 0;
+            document.getElementById('in-prog').value = "";
+            document.getElementById('in-loc').value = "";
+            document.getElementById('in-reason').value = "";
+        }
+
+        function addYearBudget() {
+            const y = document.getElementById('set-new-year').value;
+            const b = document.getElementById('set-new-budget').value;
+            if(y && b) { 
+                state.budgetsByYear[y] = parseFloat(b);
+                // Initialize week start date for new year if not set
+                if (!state.weekStartDates[y]) {
+                    state.weekStartDates[y] = `${y}-01-01`;
+                }
+                document.getElementById('set-new-year').value = '';
+                document.getElementById('set-new-budget').value = '';
+                save(); 
+                renderSettings(); 
+            }
+        }
+
+        function removeYearBudget(yr) {
+            showConfirm(`Delete budget for ${yr}?`, () => {
+                delete state.budgetsByYear[yr];
+                save();
+                renderSettings();
+            });
+        }
+
+        function renderSettings() {
+            const yearSel = document.getElementById('settings-year-selector');
+            yearSel.innerHTML = Object.keys(state.budgetsByYear).sort().map(y => 
+                `<option value="${y}">${y}</option>`
+            ).join('');
+            updateBudgetForm();
+            renderHierarchy();
+            renderRatesList();
+        }
+
+        function getRateForEmployee(ll5Name, ll6Name, empName) {
+            const ll6Subs = getSubordinates(ll6Name);
+            const emp = ll6Subs.find(e => e.name === empName);
+            if (!emp) return emp?.rate || 0;
+            
+            // Check location first (new system), then legacy rate property, then 0
+            const location = emp.location || emp.rateLocation;
+            return state.rates[location] || emp.rate || 0;
+        }
+
+        function updateBudgetForm() {
+            const year = document.getElementById('settings-year-selector').value;
+            const budgetInput = document.getElementById('settings-budget-input');
+            
+            budgetInput.value = state.budgetsByYear[year] || 0;
+        }
+
+        function saveBudgetForYear() {
+            const year = document.getElementById('settings-year-selector').value;
+            const budget = parseFloat(document.getElementById('settings-budget-input').value) || 0;
+            
+            state.budgetsByYear[year] = budget;
+            
+            save();
+            showAlert(`Budget settings saved for ${year}`);
+        }
+
+        function addNewYear() {
+            const yearInput = document.getElementById('new-year-input');
+            const year = yearInput.value.trim();
+            
+            if (!year) {
+                showAlert('Please enter a year');
+                return;
+            }
+            
+            if (state.budgetsByYear[year]) {
+                showAlert(`Year ${year} already exists`);
+                return;
+            }
+            
+            state.budgetsByYear[year] = 1000000; // Default budget
+            yearInput.value = '';
+            save();
+            renderSettings();
+            document.getElementById('settings-year-selector').value = year;
+            updateBudgetForm();
+        }
+
+        function renderHierarchy() {
+            // Alpine.js renders the organization now
+            // Just ensure dropdowns are populated
+            populateDropdowns();
+        }
+
+        function renderRatesList() {
+            const list = document.getElementById('rates-list');
+            if (!list) return;
+            list.innerHTML = '';
+            Object.entries(state.rates).forEach(([location, rate]) => {
+                const item = document.createElement('div');
+                item.className = "flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100";
+                item.innerHTML = `
+                    <div>
+                        <p class="text-xs font-black text-[#003478] uppercase">${location}</p>
+                        <p class="text-lg font-black">$${rate}<span class="text-[10px] text-slate-400 ml-1">/hr</span></p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editRate('${location}')" class="text-slate-400 hover:text-blue-500">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        </button>
+                        <button onclick="deleteRate('${location}')" class="text-slate-300 hover:text-red-500">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1-1v6a1 1 0 102 0V8a1 1 0 00-1-1z"/></svg>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function addNewRate() {
+            const location = document.getElementById('new-location-input').value.trim();
+            const rate = parseFloat(document.getElementById('new-rate-input').value);
+            
+            if (!location) {
+                showAlert('Enter a location name');
+                return;
+            }
+            if (isNaN(rate) || rate < 0) {
+                showAlert('Enter a valid rate');
+                return;
+            }
+            if (state.rates[location]) {
+                showAlert(`${location} rate already exists`);
+                return;
+            }
+            
+            state.rates[location] = rate;
+            document.getElementById('new-location-input').value = '';
+            document.getElementById('new-rate-input').value = '';
+            save();
+            renderRatesList();
+        }
+
+        function editRate(location) {
+            openEditModal(`Edit Rate: ${location}`, [
+                { id: 'rate', label: 'Rate ($/hr)', value: state.rates[location], placeholder: 'Enter rate' }
+            ], () => {
+                const newRate = parseFloat(document.getElementById('edit-field-rate').value);
+                if (!isNaN(newRate) && newRate >= 0) {
+                    state.rates[location] = newRate;
+                    save();
+                    renderRatesList();
+                }
+            });
+        }
+
+        function deleteRate(location) {
+            if (Object.keys(state.rates).length === 1) {
+                showAlert('You must keep at least one rate');
+                return;
+            }
+            showConfirm(`Delete ${location} rate?`, () => {
+                delete state.rates[location];
+                save();
+                renderRatesList();
+            });
+        }
+
+        // Organization management - handled by Alpine.js now
+        function addTopLevel() { }
+        function addPersonUnder(managerName, nextLevel) { }
+        function addGSREmployee(managerName) { }
+        function editPersonName(personName) { }
+        function deletePersonFromTree(personName) { }
+
+        function editLL5Name(ll5Name) {
+            openEditModal(`Edit Manager Name`, [
+                { id: 'name', label: 'Manager Name', value: ll5Name, placeholder: 'Enter name' }
+            ], () => {
+                const newName = document.getElementById('edit-field-name').value.trim();
+                if (newName && newName !== ll5Name) {
+                    const topManagers = getAllTopManagers();
+                    const ll5 = topManagers.find(m => m.name === ll5Name);
+                    if (ll5) {
+                        ll5.name = newName;
+                        save();
+                        renderHierarchy();
+                        populateDropdowns();
+                    }
+                }
+            });
+        }
+
+        function editLL6Name(ll6Name) {
+            openEditModal(`Edit Supervisor Name`, [
+                { id: 'name', label: 'Supervisor Name', value: ll6Name, placeholder: 'Enter name' }
+            ], () => {
+                const newName = document.getElementById('edit-field-name').value.trim();
+                if (newName && newName !== ll6Name) {
+                    const topManagers = getAllTopManagers();
+                    for (let ll5 of topManagers) {
+                        if (ll5.subs) {
+                            const ll6 = ll5.subs.find(s => s.name === ll6Name);
+                            if (ll6) {
+                                ll6.name = newName;
+                                save();
+                                renderHierarchy();
+                                populateDropdowns();
+                                return;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function editEmployee(ll5Name, ll6Name, empName) {
+            const topManagers = getAllTopManagers();
+            const ll5 = topManagers.find(m => m.name === ll5Name);
+            let emp = null;
+            let empLocation = 'US';
+            
+            if (ll5 && ll5.subs) {
+                const ll6 = ll5.subs.find(s => s.name === ll6Name);
+                if (ll6 && ll6.subs) {
+                    emp = ll6.subs.find(e => e.name === empName);
+                    if (emp) {
+                        empLocation = emp.rateLocation || 'US';
+                    }
+                }
+            }
+            
+            const locations = Object.keys(state.rates);
+            const locationsHtml = locations.map(loc => `<option value="${loc}" ${loc === empLocation ? 'selected' : ''}>${loc}</option>`).join('');
+            
+            const contentDiv = document.getElementById('edit-modal-content');
+            contentDiv.innerHTML = `
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Employee Name</label>
+                    <input type="text" id="edit-emp-name" value="${empName}" placeholder="Enter name" class="w-full p-3 bg-slate-100 rounded-xl font-bold border-none focus:ring-2 focus:ring-[#003478]">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Rate Location</label>
+                    <select id="edit-emp-location" class="w-full p-3 bg-slate-100 rounded-xl font-bold border-none focus:ring-2 focus:ring-[#003478]">
+                        ${locationsHtml}
+                    </select>
+                </div>
+            `;
+            document.getElementById('edit-modal-title').innerText = 'Edit Employee';
+            editModalData.onSubmit = () => {
+                const newName = document.getElementById('edit-emp-name').value.trim();
+                const newLocation = document.getElementById('edit-emp-location').value;
+                if (newName) {
+                    const topManagers = getAllTopManagers();
+                    const ll5 = topManagers.find(m => m.name === ll5Name);
+                    
+                    if (ll5 && ll5.subs) {
+                        const ll6 = ll5.subs.find(s => s.name === ll6Name);
+                        if (ll6 && ll6.subs) {
+                            const emp = ll6.subs.find(e => e.name === empName);
+                            if (emp) {
+                                emp.name = newName;
+                                emp.rateLocation = newLocation;
+                            }
+                        }
+                    }
+                    
+                    save();
+                    renderHierarchy();
+                    populateDropdowns();
+                }
+            };
+            document.getElementById('edit-modal').classList.remove('modal-hidden');
+        }
+
+        function setWeek1StartDate(year) {
+            const dateInput = document.getElementById(`week-start-${year}`).value;
+            if (dateInput) {
+                state.weekStartDates[year] = dateInput;
+                save();
+                refreshUI();
+                populateJumpSelectors();
+            }
+        }
+
+        function addLL6(ll5Name) {
+            const name = document.getElementById(`new-ll6-${ll5Name}`).value.trim();
+            if (!name) return;
+            
+            const topManagers = getAllTopManagers();
+            const ll5 = topManagers.find(m => m.name === ll5Name);
+            
+            if (ll5) {
+                if (!ll5.subs) ll5.subs = [];
+                ll5.subs.push({
+                    name: name,
+                    level: "LL6",
+                    subs: []
+                });
+            }
+            
+            document.getElementById(`new-ll6-${ll5Name}`).value = '';
+            save();
+            renderSettings();
+            populateDropdowns();
+        }
+
+        function removeLL6(ll5Name, ll6Name) {
+            showConfirm(`Remove ${ll6Name}?`, () => {
+                const topManagers = getAllTopManagers();
+                const ll5 = topManagers.find(m => m.name === ll5Name);
+                
+                if (ll5 && ll5.subs) {
+                    const idx = ll5.subs.findIndex(s => s.name === ll6Name);
+                    if (idx !== -1) {
+                        ll5.subs.splice(idx, 1);
+                    }
+                }
+                
+                save();
+                renderSettings();
+                populateDropdowns();
+            });
+        }
+
+        function addEmployee(ll5Name, ll6Name) {
+            const name = document.getElementById(`new-emp-${ll5Name}-${ll6Name}`).value.trim();
+            const location = document.getElementById(`new-emp-loc-${ll5Name}-${ll6Name}`).value;
+            if (!name) return;
+            
+            const topManagers = getAllTopManagers();
+            const ll5 = topManagers.find(m => m.name === ll5Name);
+            
+            if (ll5 && ll5.subs) {
+                const ll6 = ll5.subs.find(s => s.name === ll6Name);
+                if (ll6) {
+                    if (!ll6.subs) ll6.subs = [];
+                    ll6.subs.push({
+                        name: name,
+                        level: "Employee",
+                        rateLocation: location
+                    });
+                }
+            }
+            
+            document.getElementById(`new-emp-${ll5Name}-${ll6Name}`).value = '';
+            save();
+            renderSettings();
+            populateDropdowns();
+        }
+
+        function removeEmployee(ll5Name, ll6Name, empName) {
+            showConfirm(`Remove ${empName}?`, () => {
+                const topManagers = getAllTopManagers();
+                const ll5 = topManagers.find(m => m.name === ll5Name);
+                
+                if (ll5 && ll5.subs) {
+                    const ll6 = ll5.subs.find(s => s.name === ll6Name);
+                    if (ll6 && ll6.subs) {
+                        const idx = ll6.subs.findIndex(e => e.name === empName);
+                        if (idx !== -1) {
+                            ll6.subs.splice(idx, 1);
+                        }
+                    }
+                }
+                
+                save();
+                renderSettings();
+                populateDropdowns();
+            });
+        }
+
+        function editEntry(entryIdx) {
+            const entry = state.entries[entryIdx];
+            if (!entry) return;
+            
+            // Pre-populate modal with entry data
+            document.getElementById('sel-ll5').value = entry.ll5;
+            updateLL6Dropdown();
+            document.getElementById('sel-ll6').value = entry.ll6;
+            updateEmployeeDropdown();
+            document.getElementById('sel-emp').value = entry.emp;
+            document.getElementById('in-prog').value = entry.prog;
+            document.getElementById('in-loc').value = entry.loc;
+            document.getElementById('in-reason').value = entry.reason;
+            
+            for(let i = 0; i < 7; i++) {
+                document.getElementById(`hrs-${i}`).value = entry.hrs[i] || 0;
+            }
+            
+            // Remove approval section from entry modal since it's week-level now
+            let approvalContainer = document.getElementById('approval-buttons-container');
+            if (approvalContainer) {
+                approvalContainer.innerHTML = '';
+            }
+            
+            // Show modal with delete option
+            openModal();
+            
+            // Change submit button to "Update" temporarily
+            const submitBtn = document.querySelector('[onclick="addEntry()"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = 'Update Entry';
+            submitBtn.onclick = () => updateEntry(entryIdx);
+            
+            // Show delete button in modal
+            let deleteBtn = document.getElementById('entry-delete-btn');
+            if (!deleteBtn) {
+                deleteBtn = document.createElement('button');
+                deleteBtn.id = 'entry-delete-btn';
+                deleteBtn.className = 'w-full bg-red-500 text-white py-3 rounded-2xl font-black text-sm mt-2 active:scale-95 transition';
+                deleteBtn.textContent = 'Delete Entry';
+                submitBtn.parentElement.appendChild(deleteBtn);
+            }
+            deleteBtn.style.display = 'block';
+            deleteBtn.onclick = () => deleteEntry(entryIdx);
+        }
+        
+        function toggleApproval(supervisorName, weekKey) {
+            // Initialize week status if not exists
+            if (!state.weekStatus[weekKey]) {
+                state.weekStatus[weekKey] = { supervisorApproved: false, managerApproved: false, gatekeeperApproved: false, frozen: false };
+            }
+            
+            // Supervisor (LL6) toggles their approval
+            state.weekStatus[weekKey].supervisorApproved = !state.weekStatus[weekKey].supervisorApproved;
+            
+            save();
+            refreshUI();
+        }
+        
+        function approveLL5AndAllLL6s(ll5Name, weekKey) {
+            // Initialize week status if not exists
+            if (!state.weekStatus[weekKey]) {
+                state.weekStatus[weekKey] = { supervisorApproved: false, managerApproved: false, gatekeeperApproved: false, frozen: false };
+            }
+            
+            // Manager (LL5) toggles their approval
+            state.weekStatus[weekKey].managerApproved = !state.weekStatus[weekKey].managerApproved;
+            
+            save();
+            refreshUI();
+        }
+        
+        function approveAsGatekeeper(weekKey) {
+            // Initialize week status if not exists
+            if (!state.weekStatus[weekKey]) {
+                state.weekStatus[weekKey] = { supervisorApproved: false, managerApproved: false, gatekeeperApproved: false, frozen: false };
+            }
+            
+            // Gatekeeper (Bill/Raju) toggles approval and triggers freeze
+            state.weekStatus[weekKey].gatekeeperApproved = !state.weekStatus[weekKey].gatekeeperApproved;
+            state.weekStatus[weekKey].frozen = state.weekStatus[weekKey].gatekeeperApproved; // Freeze on approval
+            
+            save();
+            refreshUI();
+        }
+
+        function updateEntry(entryIdx) {
+            const week = getWeekData(state.viewOffset);
+            
+            // Check if week is frozen
+            if (isWeekFrozen(week.key)) {
+                showAlert("This week is frozen and cannot be edited.");
+                return;
+            }
+            
+            const entry = state.entries[entryIdx];
+            const hrs = [];
+            let total = 0;
+            for(let i=0; i<7; i++) {
+                const val = parseFloat(document.getElementById(`hrs-${i}`).value || 0);
+                hrs.push(val); total += val;
+            }
+            if (total === 0) {
+                showAlert('Please enter hours');
+                return;
+            }
+
+            entry.ll5 = document.getElementById('sel-ll5').value;
+            entry.ll6 = document.getElementById('sel-ll6').value;
+            entry.emp = document.getElementById('sel-emp').value;
+            entry.prog = document.getElementById('in-prog').value || "Default";
+            entry.loc = document.getElementById('in-loc').value || "N/A";
+            entry.reason = document.getElementById('in-reason').value || "N/A";
+            entry.hrs = hrs;
+            const rate = getRateForEmployee(entry.ll5, entry.ll6, entry.emp);
+            entry.cost = total * rate;
+            entry.type = isEmergencyOTDeadline() ? "Emergency" : "Standard";
+
+            save();
+            closeModal();
+            refreshUI();
+            
+            const submitBtn = document.querySelector('[onclick="addEntry()"]');
+            if (submitBtn) {
+                submitBtn.textContent = 'Submit Entry';
+                submitBtn.onclick = () => addEntry();
+            }
+            const deleteBtn = document.getElementById('entry-delete-btn');
+            if (deleteBtn) {
+                deleteBtn.style.display = 'none';
+            }
+        }
+
+        function deleteEntry(entryIdx) {
+            const week = getWeekData(state.viewOffset);
+            
+            // Check if week is frozen
+            if (isWeekFrozen(week.key)) {
+                showAlert("This week is frozen and cannot be edited.");
+                return;
+            }
+            
+            showConfirm('Delete this entry?', () => {
+                state.entries.splice(entryIdx, 1);
+                save();
+                closeConfirm();
+                closeModal();
+                
+                const submitBtn = document.querySelector('[onclick="addEntry()"]');
+                if (submitBtn) {
+                    submitBtn.textContent = 'Submit Entry';
+                    submitBtn.onclick = () => addEntry();
+                }
+                const deleteBtn = document.getElementById('entry-delete-btn');
+                if (deleteBtn) {
+                    deleteBtn.style.display = 'none';
+                }
+                
+                refreshUI();
+            });
+        }
+
+        function toggleEmpRows(className) {
+            document.querySelectorAll(`.emp-row-${className}`).forEach(r => r.classList.toggle('hidden'));
+        }
+
+        function populateJumpSelectors() {
+            const yrSel = document.getElementById('jump-year');
+            const wkSel = document.getElementById('jump-week');
+            
+            // Skip if jump selectors don't exist (not on worksheet view)
+            if (!yrSel || !wkSel) return;
+            
+            const currentYear = new Date().getFullYear();
+            const week = getWeekData(state.viewOffset);
+
+            // Only populate years if empty
+            if (yrSel.options.length === 0) {
+                for(let y = currentYear - 2; y <= currentYear + 3; y++) {
+                    const opt = document.createElement('option');
+                    opt.value = y;
+                    opt.text = y;
+                    yrSel.appendChild(opt);
+                }
+            }
+
+            // Update week dropdown when year changes
+            updateWeeksDropdown();
+
+            // Always update current values
+            yrSel.value = week.year;
+            wkSel.value = week.weekNum;
+        }
+
+        function updateWeeksDropdown() {
+            const wkSel = document.getElementById('jump-week');
+            const selectedYear = String(document.getElementById('jump-year').value);
+            
+            // Clear weeks dropdown
+            wkSel.innerHTML = '';
+            
+            // ISO 8601 has max 53 weeks (rarely)
+            for(let w = 1; w <= 53; w++) {
+                const opt = document.createElement('option');
+                opt.value = w;
+                opt.text = `Week ${w}`;
+                wkSel.appendChild(opt);
+            }
+        }
+
+        function jumpToWeek() {
+            const targetYear = parseInt(document.getElementById('jump-year').value);
+            const targetWeek = parseInt(document.getElementById('jump-week').value);
+            
+            // Find a date in the target week of target year
+            const jan1 = new Date(targetYear, 0, 1);
+            const targetDate = new Date(jan1);
+            targetDate.setDate(1 + ((targetWeek - 1) * 7));
+            
+            const weekData = getWeekData(Math.round((targetDate - new Date()) / (86400000 * 7)));
+            const today = new Date();
+            const currentSunday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            currentSunday.setDate(currentSunday.getDate() - currentSunday.getDay());
+            
+            state.viewOffset = Math.round((weekData.sun - currentSunday) / (86400000 * 7));
+            refreshUI();
+        }
+
+        function handleYearChange() {
+            updateWeeksDropdown();
+            const currentWeek = getWeekData(state.viewOffset);
+            document.getElementById('jump-week').value = currentWeek.weekNum;
+        }
+
+        function changeWeek(dir) { 
+            state.viewOffset += dir; 
+            refreshUI(); 
+        }
+        
+        function save() { 
+            localStorage.setItem('ford_ot_v3_mobile', JSON.stringify(state));
+            refreshUI();
+        }
+
+        // EXPORT/IMPORT FUNCTIONS FOR DATA BACKUP
+        function exportToJSON() {
+            const dataStr = JSON.stringify(state, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `ford-ot-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showAlert('Data exported successfully!');
+        }
+
+        function exportToCSV() {
+            if (!state.entries || state.entries.length === 0) {
+                showAlert('No entries to export');
+                return;
+            }
+
+            let csv = 'Week,Manager (LL5),Supervisor (LL6),Employee,Program,Location,Reason,Total Hours,Cost\n';
+            
+            state.entries.forEach(entry => {
+                const totalHrs = entry.hrs.reduce((a, b) => a + b, 0);
+                csv += `"${entry.weekKey}","${entry.ll5}","${entry.ll6}","${entry.emp}","${entry.prog}","${entry.loc}","${entry.reason}",${totalHrs.toFixed(2)},${entry.cost.toFixed(2)}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `ford-ot-entries-${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showAlert('Entries exported to CSV!');
+        }
+
+        function importFromJSON() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const importedData = JSON.parse(event.target.result);
+                        
+                        // Validate that it looks like valid data
+                        if (!importedData.budgetsByYear || !importedData.entries) {
+                            showAlert('Invalid backup file format');
+                            return;
+                        }
+                        
+                        // Merge or replace - show confirmation
+                        showConfirm('Replace all data with imported backup? (This cannot be undone)', () => {
+                            state = importedData;
+                            save();
+                            renderSettings();
+                            populateDropdowns();
+                            refreshUI();
+                            showAlert('Data imported successfully!');
+                        });
+                    } catch (err) {
+                        showAlert('Error reading backup file: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // UPDATE BUDGET COLOR BASED ON ALLOCATION
+        function updateBudgetColor() {
+            const week = getWeekData(state.viewOffset);
+            const annualBudget = state.budgetsByYear[week.year] || 0;
+            const spentBeforeThisWeek = state.entries.filter(e => {
+                return e.weekKey.startsWith(week.year) && e.weekKey < week.key;
+            }).reduce((s, e) => s + e.cost, 0);
+            const spentThisWeek = state.entries.filter(e => e.weekKey === week.key).reduce((s, e) => s + e.cost, 0);
+            const remainingBudget = Math.max(0, annualBudget - spentBeforeThisWeek);
+            const weeksInYear = week.weeksInYear;
+            const remainingWeeks = Math.max(1, weeksInYear - week.weekNum + 1);
+            const weekTarget = Math.round(remainingBudget / remainingWeeks);
+            
+            // Change color based on whether we're over budget for the week
+            const statElement = document.getElementById('stat-week-allocated');
+            if (spentThisWeek > weekTarget && weekTarget > 0) {
+                // Over budget - red
+                statElement.style.setProperty('--budget-color', '#dc2626');
+            } else {
+                // Under budget - orange
+                statElement.style.setProperty('--budget-color', '#ea580c');
+            }
+        }
+
+        // Toggle clarification flag for a person
+        function toggleClarify(personId) {
+            state.flags[personId] = !state.flags[personId];
+            save();
+        }
+
+        // Bulk approve all subordinates (used by LL6 and LL5)
+        function bulkApprove(managerId) {
+            const week = getWeekData(state.viewOffset);
+            const role = state.currentUser?.role;
+            
+            // Determine which status to look for and what to change it to
+            let fromStatus, toStatus;
+            if (role === 'LL6') {
+                fromStatus = 'Pending_LL6';
+                toStatus = 'Pending_LL5';
+            } else if (role === 'LL5') {
+                fromStatus = 'Pending_LL5';
+                toStatus = 'Approved';
+            } else {
+                return; // No approvals for other roles
+            }
+            
+            // Approve all entries with matching status for current week
+            state.entries.forEach(e => {
+                if (e.weekKey === week.key && e.status === fromStatus) {
+                    e.status = toStatus;
+                }
+            });
+            save();
+            refreshUI();
+        }
+
+        // Alpine.js Organization Manager - flat sequential list
+        function orgManager() {
+            return {
+                addingTo: null,
+                tempName: '',
+                tempLocation: '',
+                isDuplicate: false,
+                errorId: null,
+                levels: ['LL0', 'LL1', 'LL2', 'LL3', 'LL4', 'LL5', 'LL6', 'GSR'],
+                people: [],
+
+                init() {
+                    // Store instance for bulkApprove access
+                    window.orgManagerInstance = this;
+                    
+                    // Flatten window.state.hierarchy into a sequential people array
+                    let flat = [];
+                    const flatten = (items) => {
+                        items.forEach(item => {
+                            flat.push(item);
+                            if (item.subs) flatten(item.subs);
+                        });
+                    };
+                    if (window.state.hierarchy) flatten(window.state.hierarchy);
+                    this.people = flat;
+                },
+
+                getIndent(lvl) {
+                    return this.levels.indexOf(lvl) * 12;
+                },
+
+                getNextLevel(currentLvl) {
+                    const idx = this.levels.indexOf(currentLvl);
+                    return this.levels[idx + 1] || 'GSR';
+                },
+
+                checkDuplicate() {
+                    this.isDuplicate = this.people.some(p => p.name.toLowerCase().trim() === this.tempName.toLowerCase().trim());
+                },
+
+                validateEdit(person, oldName) {
+                    const exists = this.people.some(p => p.id !== person.id && p.name.toLowerCase().trim() === person.name.toLowerCase().trim());
+                    if (exists || person.name.trim() === "") {
+                        this.errorId = person.id;
+                        setTimeout(() => this.errorId = null, 2000);
+                        return false;
+                    }
+                    return true;
+                },
+
+                addLL0() {
+                    const name = "New Head " + (this.people.length + 1);
+                    const newPerson = { id: Date.now(), name: name, level: 'LL0', subs: [] };
+                    this.people.unshift(newPerson);
+                    if (!window.state.hierarchy) window.state.hierarchy = [];
+                    window.state.hierarchy.unshift(newPerson);
+                    save();
+                    populateDropdowns();
+                },
+
+                saveNew(parent) {
+                    this.checkDuplicate();
+                    if (this.isDuplicate || !this.tempName) return;
+
+                    const nextLvl = this.getNextLevel(parent.level);
+                    const newEntry = {
+                        id: Date.now(),
+                        name: this.tempName.trim(),
+                        level: nextLvl,
+                        subs: []
+                    };
+
+                    if (nextLvl === 'GSR') {
+                        newEntry.location = this.tempLocation;
+                        newEntry.rate = window.state.rates[this.tempLocation];
+                    }
+
+                    // Insert in flat array after parent
+                    const idx = this.people.findIndex(p => p.id === parent.id);
+                    this.people.splice(idx + 1, 0, newEntry);
+
+                    // Also add to nested hierarchy
+                    const addToHierarchy = (items) => {
+                        for (let item of items) {
+                            if (item.id === parent.id) {
+                                if (!item.subs) item.subs = [];
+                                item.subs.push(newEntry);
+                                return true;
+                            }
+                            if (item.subs && addToHierarchy(item.subs)) return true;
+                        }
+                        return false;
+                    };
+                    if (window.state.hierarchy) addToHierarchy(window.state.hierarchy);
+
+                    this.tempName = '';
+                    this.tempLocation = '';
+                    this.addingTo = null;
+                    this.isDuplicate = false;
+                    save();
+                    populateDropdowns();
+                },
+
+                removePerson(id) {
+                    this.people = this.people.filter(p => p.id !== id);
+                    
+                    // Remove from hierarchy too
+                    const removeFromHierarchy = (items) => {
+                        for (let i = 0; i < items.length; i++) {
+                            if (items[i].id === id) {
+                                items.splice(i, 1);
+                                return true;
+                            }
+                            if (items[i].subs && removeFromHierarchy(items[i].subs)) return true;
+                        }
+                        return false;
+                    };
+                    if (window.state.hierarchy) removeFromHierarchy(window.state.hierarchy);
+                    
+                    save();
+                    populateDropdowns();
+                }
+            }
+        }
+
+        // Add date picker input change listener after init
+        init();
+        document.getElementById('date-picker-input').addEventListener('change', updateWeekPreview);
+    </script>
 </body>
 </html>
